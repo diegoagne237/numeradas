@@ -301,20 +301,28 @@ td.sc{padding:4px 3px;vertical-align:top;height:1px}
   <div class="ob-body">
     <div class="ob-screen active" id="os0">
       <div class="ob-big">01</div>
-      <div><div class="ob-label">seu acervo</div><div class="ob-title">Você torce pra algum time em especial?</div></div>
-      <div class="ob-sub">Se sim, criamos uma grade dedicada com anos e variantes só pra ele.</div>
+      <div><div class="ob-label">seu acervo</div><div class="ob-title">Como quer começar?</div></div>
+      <div class="ob-sub">Você pode criar do zero ou importar o modelo de um amigo.</div>
       <div class="ob-opts">
         <button class="ob-opt" id="oopt-sim" onclick="selTime('sim')">
           <div class="ob-opt-icon">⚽</div>
-          <div class="ob-opt-title">Sim, tenho um time</div>
+          <div class="ob-opt-title">Tenho um time favorito</div>
           <div class="ob-opt-desc">Grade dedicada com anos e variantes</div>
         </button>
         <button class="ob-opt" id="oopt-nao" onclick="selTime('nao')">
           <div class="ob-opt-icon">🌍</div>
-          <div class="ob-opt-title">Não, coleciono de vários</div>
-          <div class="ob-opt-desc">Catálogo geral de qualquer time</div>
+          <div class="ob-opt-title">Coleciono de vários times</div>
+          <div class="ob-opt-desc">Catálogo geral sem grade específica</div>
         </button>
       </div>
+      <label class="ob-opt" id="oopt-modelo" style="cursor:pointer;border-style:dashed;display:flex;align-items:center;gap:12px;text-align:left">
+        <div style="font-size:1.4rem">📥</div>
+        <div>
+          <div class="ob-opt-title">Começar a partir de um modelo</div>
+          <div class="ob-opt-desc">Importar o JSON de um amigo</div>
+        </div>
+        <input type="file" accept=".json" style="display:none" onchange="handleModeloUpload(event)">
+      </label>
     </div>
     <div class="ob-screen" id="os1">
       <div class="ob-big">02</div>
@@ -338,6 +346,29 @@ td.sc{padding:4px 3px;vertical-align:top;height:1px}
       <div class="ob-sub" id="ob-done-sub">Agora é só começar a catalogar suas camisas.</div>
       <div class="ob-pills" id="ob-done-pills"></div>
     </div>
+
+    <div class="ob-screen" id="os-modelo">
+      <div class="ob-big">📥</div>
+      <div><div class="ob-label">importar modelo</div><div class="ob-title">O que quer trazer?</div></div>
+      <div>
+        <div class="ob-label" style="margin-bottom:8px">Times a importar</div>
+        <div id="modelo-teams-list"></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-sm)">
+        <input type="checkbox" id="modelo-include-shirts" checked style="accent-color:var(--has);width:16px;height:16px">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">Incluir camisas cadastradas nos times</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:2px">Importa todas as camisas dos times selecionados</div>
+        </div>
+      </label>
+      <label id="modelo-others-wrap" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-sm)">
+        <input type="checkbox" id="modelo-include-others" checked style="accent-color:var(--has);width:16px;height:16px">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--text)">Incluir camisas de outros times</div>
+          <div id="modelo-others-count" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+        </div>
+      </label>
+    </div>
   </div>
   <div class="ob-foot">
     <button class="btn-back" id="ob-back" onclick="obBack()" style="display:none">Voltar</button>
@@ -358,6 +389,7 @@ td.sc{padding:4px 3px;vertical-align:top;height:1px}
       <div class="hdr-user">
         <div class="hdr-user-name">
           <span id="hdr-name"></span>
+          <button class="logout-btn" onclick="exportModelo()" title="Exportar modelo JSON">⬇ modelo</button>
           <button class="logout-btn" onclick="openShareSettings()" style="border-color:var(--has);color:var(--has-text);background:var(--has-bg)">compartilhar</button>
           <button class="logout-btn" onclick="doLogout()">sair</button>
         </div>
@@ -459,7 +491,130 @@ async function doSignup(e){
 
 async function doLogout(){await sb.auth.signOut();_uid=null;_profile=null;_loading=false;document.getElementById('app').style.display='none';showAuth();}
 
-/* ── COMPARTILHAMENTO ── */
+/* ── EXPORTAR / IMPORTAR MODELO ── */
+function exportModelo(){
+  const modelo={
+    version:1,
+    exported_at:new Date().toISOString(),
+    teams:_teams.map(t=>({
+      name:t.name,
+      years:t.years,
+      variants:t.variants,
+      shirts:Object.values(_shirts[t.id]||{}).map(s=>({
+        year:s.year,variant:s.variant,status:s.status,
+        img:s.img||'',img2:s.img2||'',img3:s.img3||'',
+        number:s.number||'',size:s.size||'',brand:s.brand||'',
+        qty:s.qty||1,cond:s.cond||'novo',obs:s.obs||''
+      }))
+    })),
+    other_shirts:_others.map(s=>({
+      team:s.team,year:s.year,variant:s.variant,league:s.league||'',
+      status:s.status,img:s.img||'',img2:s.img2||'',img3:s.img3||'',
+      number:s.number||'',size:s.size||'',brand:s.brand||'',obs:s.obs||''
+    }))
+  };
+  const blob=new Blob([JSON.stringify(modelo,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`numeradas-modelo-${(_profile?.username||'acervo')}.json`;
+  a.click();
+  toast('Modelo exportado!');
+}
+
+let _modeloData=null;
+
+function handleModeloUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.teams||!Array.isArray(data.teams)){alert('Arquivo inválido. Certifique-se de usar um arquivo exportado pelo Numeradas.');return;}
+      _modeloData=data;
+      obShowModeloStep();
+    }catch{alert('Erro ao ler o arquivo JSON.');}
+  };
+  reader.readAsText(file);
+}
+
+function obShowModeloStep(){
+  document.querySelectorAll('.ob-screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('os-modelo').classList.add('active');
+  document.getElementById('ob-back').style.display='';
+  document.getElementById('ob-skip').style.display='none';
+  document.getElementById('ob-next').textContent='Importar';
+  document.getElementById('ob-next').disabled=false;
+
+  const teams=_modeloData.teams||[];
+  document.getElementById('modelo-teams-list').innerHTML=teams.map((t,i)=>`
+    <label style="display:flex;align-items:flex-start;gap:10px;padding:10px;border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;margin-bottom:6px">
+      <input type="checkbox" class="modelo-team-check" data-idx="${i}" checked style="margin-top:2px;accent-color:var(--has)">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:var(--text)">⚽ ${t.name}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${t.years?.length||0} anos · ${t.variants?.length||0} variantes · ${t.shirts?.length||0} camisas</div>
+      </div>
+    </label>`).join('');
+
+  const others=_modeloData.other_shirts||[];
+  const othersWrap=document.getElementById('modelo-others-wrap');
+  const othersCount=document.getElementById('modelo-others-count');
+  if(others.length){
+    othersWrap.style.display='flex';
+    othersCount.textContent=`${others.length} camisa${others.length!==1?'s':''} de outros times`;
+  } else {
+    othersWrap.style.display='none';
+  }
+}
+
+async function finishModeloImport(){
+  const btn=document.getElementById('ob-next');
+  btn.disabled=true;btn.textContent='Importando...';
+
+  const includeShirts=document.getElementById('modelo-include-shirts').checked;
+  const selectedIdxs=[...document.querySelectorAll('.modelo-team-check:checked')].map(c=>parseInt(c.dataset.idx));
+  const teams=(_modeloData.teams||[]).filter((_,i)=>selectedIdxs.includes(i));
+
+  for(let pos=0;pos<teams.length;pos++){
+    const t=teams[pos];
+    const{data:team}=await sb.from('favorite_teams').insert({
+      user_id:_uid,name:t.name,years:t.years||[],variants:t.variants||[],position:pos
+    }).select().single();
+    if(!team)continue;
+    _teams.push(team);
+    _shirts[team.id]={};
+    if(includeShirts&&t.shirts?.length){
+      for(const s of t.shirts){
+        const{data:shirt}=await sb.from('main_shirts').insert({
+          user_id:_uid,team_id:team.id,year:s.year,variant:s.variant,
+          status:s.status||'has',img:s.img||'',img2:s.img2||'',img3:s.img3||'',
+          number:s.number||'',size:s.size||'',brand:s.brand||'',
+          qty:s.qty||1,cond:s.cond||'novo',obs:s.obs||''
+        }).select().single();
+        if(shirt)_shirts[team.id][gkey(shirt.year,shirt.variant)]=shirt;
+      }
+    }
+  }
+
+  await sb.from('profiles').update({onboarding_done:true}).eq('id',_uid);
+  _profile.onboarding_done=true;
+
+  // Importar outras camisas se selecionado
+  const includeOthers=document.getElementById('modelo-include-others')?.checked;
+  if(includeOthers&&_modeloData.other_shirts?.length){
+    for(const s of _modeloData.other_shirts){
+      const{data:shirt}=await sb.from('other_shirts').insert({
+        user_id:_uid,team:s.team,year:s.year||null,variant:s.variant||'',
+        league:s.league||'',status:s.status||'has',
+        img:s.img||'',img2:s.img2||'',img3:s.img3||'',
+        number:s.number||'',size:s.size||'',brand:s.brand||'',obs:s.obs||''
+      }).select().single();
+      if(shirt)_others.push(shirt);
+    }
+  }
+
+  _loading=false;
+  startApp();
+}
 function openShareSettings(){
   const p=_profile||{};
   const url=`${location.origin}${location.pathname}#/u/${p.username||''}`;
@@ -687,18 +842,32 @@ function obShowScreen(n){
 }
 function obCheck(){
   const btn=document.getElementById('ob-next');
-  const step=parseInt(document.querySelector('.ob-screen.active')?.id?.replace('os','')||'0');
-  if(step===0)btn.disabled=_obHasTime===null;
-  else if(step===1)btn.disabled=document.getElementById('inp-time').value.trim().length<2;
+  const activeId=document.querySelector('.ob-screen.active')?.id||'os0';
+  if(activeId==='os0')btn.disabled=_obHasTime===null;
+  else if(activeId==='os1')btn.disabled=document.getElementById('inp-time').value.trim().length<2;
   else btn.disabled=false;
 }
 async function obNext(){
-  const step=parseInt(document.querySelector('.ob-screen.active').id.replace('os',''));
-  if(step===0){if(_obHasTime==='sim')obShowScreen(1);else await finishOb();}
-  else if(step===1){obBuildDone();obShowScreen(2);}
+  const activeId=document.querySelector('.ob-screen.active').id;
+  if(activeId==='os0'){if(_obHasTime==='sim')obShowScreen(1);else await finishOb();}
+  else if(activeId==='os1'){obBuildDone();obShowScreen(2);}
+  else if(activeId==='os-modelo'){await finishModeloImport();}
   else await finishOb();
 }
-function obBack(){const s=parseInt(document.querySelector('.ob-screen.active').id.replace('os',''));if(s>0)obShowScreen(s-1);}
+function obBack(){
+  const activeId=document.querySelector('.ob-screen.active').id;
+  if(activeId==='os-modelo'){
+    document.querySelectorAll('.ob-screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById('os0').classList.add('active');
+    document.getElementById('ob-back').style.display='none';
+    document.getElementById('ob-skip').style.display='';
+    document.getElementById('ob-next').textContent='Continuar';
+    obCheck();
+  } else {
+    const s=parseInt(activeId.replace('os',''));
+    if(s>0)obShowScreen(s-1);
+  }
+}
 async function obSkip(){_obHasTime='nao';await finishOb();}
 function selTime(v){_obHasTime=v;document.getElementById('oopt-sim').classList.toggle('sel',v==='sim');document.getElementById('oopt-nao').classList.toggle('sel',v==='nao');obCheck();}
 function obBuildDone(){
