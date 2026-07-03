@@ -376,7 +376,8 @@ let _teams = [];       // favorite_teams[]
 let _shirts = {};      // { team_id: { gkey: shirt } }
 let _others = [];      // other_shirts[]
 let _curTeamId = null; // grade ativa
-let _status = 'has', _imgData = '';
+let _status = 'has';
+let _imgs = ['','',''];
 let _gF = '', _oF = '';
 let _obHasTime = null;
 
@@ -702,43 +703,103 @@ function renderGrade(team){
 }
 
 /* ── FORM HELPERS ── */
-function imgField(existing){
-  _imgData=existing||'';
-  return`<div class="field"><label>Foto da camisa</label>
-    <div style="display:flex;gap:6px;margin-bottom:6px">
+let _imgs = ['','','']; // até 3 fotos
+
+function imgField(existing, existing2, existing3){
+  _imgs = [existing||'', existing2||'', existing3||''];
+  return`<div class="field"><label>Fotos da camisa <span style="color:var(--muted);font-weight:400">(até 3)</span></label>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
       <button type="button" class="img-tab active" id="itab-url" onclick="switchImgTab('url')">🔗 Link</button>
       <button type="button" class="img-tab" id="itab-file" onclick="switchImgTab('file')">📷 Upload</button>
     </div>
     <div id="img-url-sec">
-      <input type="url" id="img-url" placeholder="https://..." value="${existing&&!existing.includes('supabase')?existing:''}" oninput="handleUrl(this.value)">
+      <input type="url" id="img-url" placeholder="https://..." value="${_imgs[0]&&!_imgs[0].includes('supabase')?_imgs[0]:''}" oninput="handleUrl(this.value)">
     </div>
     <div id="img-file-sec" style="display:none">
-      <div class="upload-area">Toque para escolher foto ou tirar uma<input type="file" accept="image/*" capture="environment" onchange="handleUpload(event)"></div>
+      <div class="upload-area" id="upload-area-main">
+        <div id="upload-status">📁 Escolher da galeria ou câmera</div>
+        <div style="font-size:11px;color:var(--hint);margin-top:4px">JPG, PNG, WEBP, HEIC • máx. 3 fotos</div>
+        <input type="file" accept="image/*,image/heic,image/heif" multiple onchange="handleUpload(event)">
+      </div>
     </div>
-    <img id="img-prev" class="img-preview" src="${existing||''}" style="display:${existing?'block':'none'}">
+    <div id="img-previews" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"></div>
   </div>`;
 }
+
 function switchImgTab(tab){
   document.getElementById('itab-url').className='img-tab'+(tab==='url'?' active':'');
   document.getElementById('itab-file').className='img-tab'+(tab==='file'?' active':'');
   document.getElementById('img-url-sec').style.display=tab==='url'?'':'none';
   document.getElementById('img-file-sec').style.display=tab==='file'?'':'none';
 }
-function handleUrl(v){_imgData=v.trim();const p=document.getElementById('img-prev');p.style.display=_imgData?'block':'none';if(_imgData)p.src=_imgData;}
-async function handleUpload(e){
-  const file=e.target.files[0];if(!file)return;
-  // Comprimir antes de subir
-  const compressed=await compressImage(file,800,0.8);
-  const ext=file.name.split('.').pop()||'jpg';
-  const path=`${_uid}/${Date.now()}.${ext}`;
-  const{data,error}=await sb.storage.from('shirt-photos').upload(path,compressed,{upsert:true});
-  if(error){alert('Erro no upload: '+error.message);return;}
-  const{data:{publicUrl}}=sb.storage.from('shirt-photos').getPublicUrl(path);
-  _imgData=publicUrl;
-  const p=document.getElementById('img-prev');p.src=_imgData;p.style.display='block';
+
+function handleUrl(v){
+  _imgs[0]=v.trim();
+  renderImgPreviews();
 }
+
+function renderImgPreviews(){
+  const wrap=document.getElementById('img-previews');
+  if(!wrap)return;
+  wrap.innerHTML=_imgs.filter(u=>u).map((url,i)=>`
+    <div style="position:relative;display:inline-block">
+      <img src="${url}" style="height:72px;width:72px;object-fit:cover;border-radius:var(--radius-sm);border:0.5px solid var(--border);display:block">
+      <button type="button" onclick="removeImg(${i})" style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:#dc2626;color:#fff;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center">×</button>
+    </div>`).join('');
+  // mostrar/esconder área de upload
+  const area=document.getElementById('upload-area-main');
+  if(area)area.style.display=_imgs.filter(u=>u).length>=3?'none':'';
+}
+
+function removeImg(i){
+  _imgs[i]='';
+  // recompactar
+  _imgs=_imgs.filter(u=>u);
+  while(_imgs.length<3)_imgs.push('');
+  renderImgPreviews();
+}
+
+const SUPPORTED=['image/jpeg','image/png','image/webp','image/gif','image/heic','image/heif'];
+
+async function handleUpload(e){
+  const files=[...e.target.files].slice(0, 3-_imgs.filter(u=>u).length);
+  if(!files.length)return;
+
+  // Validar formatos
+  const invalid=files.filter(f=>!SUPPORTED.includes(f.type.toLowerCase())&&!f.name.match(/\.(heic|heif|jpg|jpeg|png|webp|gif)$/i));
+  if(invalid.length){
+    alert(`Formato não suportado: ${invalid.map(f=>f.name).join(', ')}\nUse JPG, PNG, WEBP ou HEIC.`);
+    return;
+  }
+
+  const status=document.getElementById('upload-status');
+  const area=document.getElementById('upload-area-main');
+  if(status)status.textContent='⏳ Enviando...';
+  if(area)area.style.pointerEvents='none';
+
+  try{
+    for(const file of files){
+      const compressed=await compressImage(file,900,0.82);
+      const path=`${_uid}/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      const{error}=await sb.storage.from('shirt-photos').upload(path,compressed,{upsert:true});
+      if(error)throw error;
+      const{data:{publicUrl}}=sb.storage.from('shirt-photos').getPublicUrl(path);
+      const slot=_imgs.findIndex(u=>!u);
+      if(slot!==-1)_imgs[slot]=publicUrl;
+    }
+    renderImgPreviews();
+    if(status)status.textContent='📁 Escolher da galeria ou câmera';
+  }catch(err){
+    alert('Erro no upload: '+err.message);
+    if(status)status.textContent='📁 Escolher da galeria ou câmera';
+  }finally{
+    if(area)area.style.pointerEvents='';
+    e.target.value='';
+  }
+}
+
 async function compressImage(file,maxSize,quality){
-  return new Promise(resolve=>{
+  return new Promise((resolve,reject)=>{
     const reader=new FileReader();
     reader.onload=ev=>{
       const img=new Image();
@@ -749,10 +810,12 @@ async function compressImage(file,maxSize,quality){
         const canvas=document.createElement('canvas');
         canvas.width=w;canvas.height=h;
         canvas.getContext('2d').drawImage(img,0,0,w,h);
-        canvas.toBlob(blob=>resolve(blob),'image/jpeg',quality);
+        canvas.toBlob(b=>{if(b)resolve(b);else reject(new Error('Falha ao comprimir'));},'image/jpeg',quality);
       };
+      img.onerror=()=>reject(new Error('Falha ao ler imagem'));
       img.src=ev.target.result;
     };
+    reader.onerror=()=>reject(new Error('Falha ao ler arquivo'));
     reader.readAsDataURL(file);
   });
 }
@@ -760,8 +823,8 @@ function setSt(v){_status=v;document.getElementById('sb-has').className='status-
 function statusRow(st){return`<div class="status-row"><button type="button" id="sb-has" class="status-btn${st==='has'?' sel-has':''}" onclick="setSt('has')">✅ tenho</button><button type="button" id="sb-want" class="status-btn${st==='want'?' sel-want':''}" onclick="setSt('want')">🔵 quero</button></div>`;}
 
 function shirtForm(s){
-  s=s||{};_status=s.status||'has';_imgData=s.img||'';
-  return`<div class="field"><label>Status</label>${statusRow(_status)}</div>${imgField(s.img||'')}
+  s=s||{};_status=s.status||'has';
+  return`<div class="field"><label>Status</label>${statusRow(_status)}</div>${imgField(s.img||'',s.img2||'',s.img3||'')}
     <div class="field"><label>Número / jogador</label><input id="m-num" type="text" value="${s.number||''}" placeholder="Ex: 10 – Suárez"></div>
     <div class="field"><label>Tamanho</label><select id="m-size"><option value="">—</option>${['PP','P','M','G','GG','XGG'].map(x=>`<option${s.size===x?' selected':''}>${x}</option>`).join('')}</select></div>
     <div class="field"><label>Fabricante</label><input id="m-brand" type="text" value="${s.brand||''}" placeholder="Ex: Umbro, Adidas..."></div>
@@ -769,7 +832,7 @@ function shirtForm(s){
     <div class="field"><label>Estado</label><select id="m-cond">${['novo','bom','regular','desgastado'].map(c=>`<option value="${c}"${(s.cond||'novo')===c?' selected':''}>${{novo:'Novo / excelente',bom:'Bom',regular:'Regular',desgastado:'Desgastado'}[c]}</option>`).join('')}</select></div>
     <div class="field"><label>Observações</label><textarea id="m-obs" placeholder="Como conseguiu, valor...">${s.obs||''}</textarea></div>`;
 }
-function shirtFormData(){return{status:_status,img:_imgData,number:document.getElementById('m-num').value.trim(),size:document.getElementById('m-size').value,brand:document.getElementById('m-brand').value.trim(),qty:parseInt(document.getElementById('m-qty').value)||1,cond:document.getElementById('m-cond').value,obs:document.getElementById('m-obs').value.trim()};}
+function shirtFormData(){return{status:_status,img:_imgs[0]||'',img2:_imgs[1]||'',img3:_imgs[2]||'',number:document.getElementById('m-num').value.trim(),size:document.getElementById('m-size').value,brand:document.getElementById('m-brand').value.trim(),qty:parseInt(document.getElementById('m-qty').value)||1,cond:document.getElementById('m-cond').value,obs:document.getElementById('m-obs').value.trim()};}
 
 function openGAdd(teamId,year,variant){
   document.getElementById('m-title').textContent=`${variant} ${year}`;
@@ -788,12 +851,19 @@ async function saveG(teamId,year,variant){
   if(!res.error){_shirts[teamId][k]=res.data;toast();closeModal();const team=_teams.find(t=>t.id===teamId);renderGrade(team);}
 }
 
+function detailImgs(s){
+  const urls=[s.img,s.img2,s.img3].filter(u=>u);
+  if(!urls.length)return'';
+  if(urls.length===1)return`<img class="detail-img" src="${urls[0]}" alt="" onerror="this.style.display='none'">`;
+  return`<div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto">${urls.map(u=>`<img src="${u}" style="height:120px;width:120px;object-fit:cover;border-radius:var(--radius-sm);flex-shrink:0;cursor:pointer" onclick="window.open('${u}')" onerror="this.style.display='none'">`).join('')}</div>`;
+}
+
 function openGDetail(teamId,k){
   const s=_shirts[teamId]?.[k];if(!s)return;
   const cp={novo:'Novo/excelente',bom:'Bom',regular:'Regular',desgastado:'Desgastado'};
   document.getElementById('m-title').textContent=`${s.variant} ${s.year}`;
   document.getElementById('m-body').innerHTML=
-    (s.img?`<img class="detail-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:'')
+    detailImgs(s)
     +`<div style="margin-bottom:10px"><span class="tag tag-${s.status}" style="font-size:11px;padding:3px 10px">${s.status==='has'?'tenho':'quero'}</span></div>`
     +(s.number?`<div class="detail-row"><span>Número</span><span style="font-size:1.1rem;font-weight:500;letter-spacing:-.5px">${s.number}</span></div>`:'')
     +(s.size?`<div class="detail-row"><span>Tamanho</span><span>${s.size}</span></div>`:'')
@@ -953,8 +1023,8 @@ async function saveAddTeam(){
 
 /* ── OUTROS TIMES ── */
 function otherForm(s){
-  s=s||{};_status=s.status||'has';_imgData=s.img||'';
-  return`<div class="field"><label>Status</label>${statusRow(_status)}</div>${imgField(s.img||'')}
+  s=s||{};_status=s.status||'has';
+  return`<div class="field"><label>Status</label>${statusRow(_status)}</div>${imgField(s.img||'',s.img2||'',s.img3||'')}
     <div class="field"><label>Time *</label><input id="m-team" type="text" value="${s.team||''}" placeholder="Ex: Ajax, Liverpool..."></div>
     <div class="field"><label>Ano</label><input id="m-year" type="number" value="${s.year||''}" placeholder="Ex: 2023"></div>
     <div class="field"><label>Tipo</label><select id="m-variant"><option value="">—</option>${['Titular','Visitante','Terceiro','Goleiro','Especial','Retrô'].map(x=>`<option${s.variant===x?' selected':''}>${x}</option>`).join('')}</select></div>
@@ -964,7 +1034,7 @@ function otherForm(s){
     <div class="field"><label>Tamanho</label><select id="m-size"><option value="">—</option>${['PP','P','M','G','GG','XGG'].map(x=>`<option${s.size===x?' selected':''}>${x}</option>`).join('')}</select></div>
     <div class="field"><label>Observações</label><textarea id="m-obs" placeholder="Como conseguiu, valor...">${s.obs||''}</textarea></div>`;
 }
-function otherFormData(){const team=document.getElementById('m-team').value.trim();if(!team)return null;return{status:_status,img:_imgData,team,year:parseInt(document.getElementById('m-year').value)||null,variant:document.getElementById('m-variant').value,league:document.getElementById('m-league').value.trim(),number:document.getElementById('m-num').value.trim(),brand:document.getElementById('m-brand').value.trim(),size:document.getElementById('m-size').value,obs:document.getElementById('m-obs').value.trim()};}
+function otherFormData(){const team=document.getElementById('m-team').value.trim();if(!team)return null;return{status:_status,img:_imgs[0]||'',img2:_imgs[1]||'',img3:_imgs[2]||'',team,year:parseInt(document.getElementById('m-year').value)||null,variant:document.getElementById('m-variant').value,league:document.getElementById('m-league').value.trim(),number:document.getElementById('m-num').value.trim(),brand:document.getElementById('m-brand').value.trim(),size:document.getElementById('m-size').value,obs:document.getElementById('m-obs').value.trim()};}
 
 function renderOthers(){
   const searchEl=document.getElementById('o-search');
@@ -992,7 +1062,7 @@ function renderOthers(){
 
 function openOtherAdd(){document.getElementById('m-title').textContent='Nova camisa';document.getElementById('m-body').innerHTML=otherForm({});document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveOther()">Salvar</button>`;openModal();}
 async function saveOther(id){const d=otherFormData();if(!d){alert('Informe o nome do time.');return;}d.user_id=_uid;let res;if(id){const i=_others.findIndex(x=>x.id===id);if(i!==-1){res=await sb.from('other_shirts').update(d).eq('id',id).select().single();if(!res.error)_others[i]=res.data;}}else{res=await sb.from('other_shirts').insert(d).select().single();if(!res.error)_others.push(res.data);}if(!res.error){toast();closeModal();renderOthers();updateHeader();}}
-function openOtherDetail(id){const s=_others.find(x=>x.id===id);if(!s)return;document.getElementById('m-title').textContent=s.team;document.getElementById('m-body').innerHTML=(s.img?`<img class="detail-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:'')+`<div style="margin-bottom:10px"><span class="tag tag-${s.status}" style="font-size:11px;padding:3px 10px">${s.status==='has'?'tenho':'quero'}</span></div>`+(s.number?`<div class="detail-row"><span>Número</span><span style="font-size:1.1rem;font-weight:500;letter-spacing:-.5px">${s.number}</span></div>`:'')+( s.year?`<div class="detail-row"><span>Ano</span><span>${s.year}</span></div>`:'')+( s.variant?`<div class="detail-row"><span>Tipo</span><span>${s.variant}</span></div>`:'')+( s.league?`<div class="detail-row"><span>País / liga</span><span>${s.league}</span></div>`:'')+( s.brand?`<div class="detail-row"><span>Fabricante</span><span>${s.brand}</span></div>`:'')+( s.size?`<div class="detail-row"><span>Tamanho</span><span>${s.size}</span></div>`:'')+( s.obs?`<p class="detail-obs">${s.obs}</p>`:'');document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Fechar</button><button class="btn-del" onclick="removeOther('${id}')">Remover</button><button class="btn-save" onclick="editOther('${id}')">Editar</button>`;openModal();}
+function openOtherDetail(id){const s=_others.find(x=>x.id===id);if(!s)return;document.getElementById('m-title').textContent=s.team;document.getElementById('m-body').innerHTML=detailImgs(s)+`<div style="margin-bottom:10px"><span class="tag tag-${s.status}" style="font-size:11px;padding:3px 10px">${s.status==='has'?'tenho':'quero'}</span></div>`+(s.number?`<div class="detail-row"><span>Número</span><span style="font-size:1.1rem;font-weight:500;letter-spacing:-.5px">${s.number}</span></div>`:'')+( s.year?`<div class="detail-row"><span>Ano</span><span>${s.year}</span></div>`:'')+( s.variant?`<div class="detail-row"><span>Tipo</span><span>${s.variant}</span></div>`:'')+( s.league?`<div class="detail-row"><span>País / liga</span><span>${s.league}</span></div>`:'')+( s.brand?`<div class="detail-row"><span>Fabricante</span><span>${s.brand}</span></div>`:'')+( s.size?`<div class="detail-row"><span>Tamanho</span><span>${s.size}</span></div>`:'')+( s.obs?`<p class="detail-obs">${s.obs}</p>`:'');document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Fechar</button><button class="btn-del" onclick="removeOther('${id}')">Remover</button><button class="btn-save" onclick="editOther('${id}')">Editar</button>`;openModal();}
 function editOther(id){const s=_others.find(x=>x.id===id);closeModal();setTimeout(()=>{document.getElementById('m-title').textContent='Editar camisa';document.getElementById('m-body').innerHTML=otherForm(s);document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveOther('${id}')">Salvar</button>`;openModal();},60);}
 async function removeOther(id){if(!confirm('Remover esta camisa?'))return;await sb.from('other_shirts').delete().eq('id',id);_others=_others.filter(x=>x.id!==id);toast('Removido');closeModal();renderOthers();updateHeader();}
 
