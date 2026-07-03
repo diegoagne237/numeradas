@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Numeradas</title>
+<script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -796,25 +797,37 @@ async function handleUpload(e){
   }
 }
 
-async function compressImage(file,maxSize,quality){
-  return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onload=ev=>{
-      const img=new Image();
-      img.onload=()=>{
-        let w=img.width,h=img.height;
-        if(w>h){if(w>maxSize){h=Math.round(h*maxSize/w);w=maxSize;}}
-        else{if(h>maxSize){w=Math.round(w*maxSize/h);h=maxSize;}}
-        const canvas=document.createElement('canvas');
-        canvas.width=w;canvas.height=h;
-        canvas.getContext('2d').drawImage(img,0,0,w,h);
-        canvas.toBlob(b=>{if(b)resolve(b);else reject(new Error('Falha ao comprimir'));},'image/jpeg',quality);
+async function compressImage(file, maxSize, quality){
+  // Converter HEIC/HEIF para JPEG primeiro
+  let processFile = file;
+  const isHeic = file.type === 'image/heic' || file.type === 'image/heif' ||
+                 file.name.match(/\.(heic|heif)$/i);
+  if(isHeic){
+    try{
+      const blob = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.9 });
+      processFile = Array.isArray(blob) ? blob[0] : blob;
+    } catch(e){
+      throw new Error('Não foi possível converter o arquivo HEIC. Tente exportar como JPG no celular.');
+    }
+  }
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if(w > h){ if(w > maxSize){ h = Math.round(h * maxSize / w); w = maxSize; }}
+        else{ if(h > maxSize){ w = Math.round(w * maxSize / h); h = maxSize; }}
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        canvas.toBlob(b => { if(b) resolve(b); else reject(new Error('Falha ao comprimir')); }, 'image/jpeg', quality);
       };
-      img.onerror=()=>reject(new Error('Falha ao ler imagem'));
-      img.src=ev.target.result;
+      img.onerror = () => reject(new Error('Falha ao ler imagem'));
+      img.src = ev.target.result;
     };
-    reader.onerror=()=>reject(new Error('Falha ao ler arquivo'));
-    reader.readAsDataURL(file);
+    reader.onerror = () => reject(new Error('Falha ao ler arquivo'));
+    reader.readAsDataURL(processFile);
   });
 }
 function setSt(v){_status=v;document.getElementById('sb-has').className='status-btn'+(v==='has'?' sel-has':'');document.getElementById('sb-want').className='status-btn'+(v==='want'?' sel-want':'');}
