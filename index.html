@@ -256,10 +256,36 @@ td.sc{padding:4px 3px;vertical-align:top;height:1px}
     </form>
     <form class="auth-form" id="form-signup" onsubmit="doSignup(event)">
       <div class="auth-field"><label>Seu nome</label><input type="text" id="signup-name" placeholder="Como você se chama" required></div>
+      <div class="auth-field"><label>@username</label>
+        <div style="position:relative">
+          <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px">@</span>
+          <input type="text" id="signup-username" placeholder="seunome" required pattern="[a-z0-9_]+" title="Apenas letras minúsculas, números e _" style="padding-left:24px" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px">Apenas letras minúsculas, números e _ (sem espaços)</div>
+      </div>
       <div class="auth-field"><label>E-mail</label><input type="email" id="signup-email" placeholder="seu@email.com" required></div>
       <div class="auth-field"><label>Senha</label><input type="password" id="signup-pass" placeholder="Mínimo 6 caracteres" minlength="6" required></div>
       <button type="submit" class="auth-btn" id="btn-signup">Criar conta</button>
     </form>
+  </div>
+</div>
+
+<!-- PÁGINA PÚBLICA -->
+<div id="public-view" style="display:none;max-width:800px;margin:0 auto;background:var(--bg);min-height:100vh">
+  <header class="hdr" style="justify-content:space-between">
+    <div class="logo">numeradas<sup>acervo</sup></div>
+    <a href="/" style="font-size:13px;color:var(--muted);text-decoration:none;border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:6px 12px">Criar meu acervo →</a>
+  </header>
+  <div style="padding:1.5rem 1.5rem 1rem;border-bottom:0.5px solid var(--border)">
+    <div style="font-size:1.4rem;font-weight:500" id="pub-name"></div>
+    <div style="font-size:13px;color:var(--muted);margin-top:2px" id="pub-username"></div>
+  </div>
+  <div class="tabs-bar" id="pub-tabs"></div>
+  <div id="pub-panels"></div>
+  <div id="pub-empty" style="display:none;text-align:center;padding:4rem 1rem;color:var(--muted)">
+    <div style="font-size:2rem;margin-bottom:1rem">🔒</div>
+    <div style="font-size:15px;font-weight:500;color:var(--text);margin-bottom:.5rem">Acervo não encontrado</div>
+    <div style="font-size:13px">Este usuário não existe ou não tornou seu acervo público.</div>
   </div>
 </div>
 
@@ -332,6 +358,7 @@ td.sc{padding:4px 3px;vertical-align:top;height:1px}
       <div class="hdr-user">
         <div class="hdr-user-name">
           <span id="hdr-name"></span>
+          <button class="logout-btn" onclick="openShareSettings()" style="border-color:var(--has);color:var(--has-text);background:var(--has-bg)">compartilhar</button>
           <button class="logout-btn" onclick="doLogout()">sair</button>
         </div>
         <span class="hdr-user-email" id="hdr-email"></span>
@@ -412,13 +439,204 @@ async function doSignup(e){
   e.preventDefault();
   const btn=document.getElementById('btn-signup');btn.disabled=true;btn.textContent='Criando conta...';
   const name=document.getElementById('signup-name').value.trim();
-  const{error}=await sb.auth.signUp({email:document.getElementById('signup-email').value,password:document.getElementById('signup-pass').value,options:{data:{name}}});
+  const username=document.getElementById('signup-username').value.trim().toLowerCase();
+
+  // Verificar se username já existe
+  if(username){
+    const{data:existing}=await sb.from('profiles').select('id').eq('username',username).maybeSingle();
+    if(existing){btn.disabled=false;btn.textContent='Criar conta';authErr(`O @${username} já está em uso. Escolha outro.`);return;}
+  }
+
+  const{error}=await sb.auth.signUp({
+    email:document.getElementById('signup-email').value,
+    password:document.getElementById('signup-pass').value,
+    options:{data:{name,username}}
+  });
   btn.disabled=false;btn.textContent='Criar conta';
   if(error)authErr(error.message);
-  else authErr('Conta criada! Verifique seu e-mail se necessário, ou faça login.');
+  else authErr('Conta criada! Faça login para entrar.');
 }
 
 async function doLogout(){await sb.auth.signOut();_uid=null;_profile=null;_loading=false;document.getElementById('app').style.display='none';showAuth();}
+
+/* ── COMPARTILHAMENTO ── */
+function openShareSettings(){
+  const p=_profile||{};
+  const url=`${location.origin}${location.pathname}#/u/${p.username||''}`;
+  document.getElementById('m-title').textContent='Compartilhar acervo';
+  document.getElementById('m-body').innerHTML=`
+    <div style="margin-bottom:12px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;font-weight:500">Seu link público</div>
+      ${p.username?`
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" value="${url}" readonly style="flex:1;font-size:12px;background:var(--surface);border:0.5px solid var(--border);color:var(--muted);border-radius:var(--radius-sm);padding:8px 10px">
+          <button class="btn" onclick="navigator.clipboard.writeText('${url}').then(()=>toast('Link copiado!'))">Copiar</button>
+        </div>` :
+        `<div style="font-size:13px;color:var(--muted);padding:8px 10px;background:var(--surface);border-radius:var(--radius-sm)">Defina um @username para ter seu link público.</div>`
+      }
+    </div>
+    <div class="field"><label>@username</label>
+      <div style="position:relative">
+        <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:14px">@</span>
+        <input type="text" id="sh-username" value="${p.username||''}" placeholder="seunome" style="padding-left:24px" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'')">
+      </div>
+    </div>
+    <div class="field" style="background:var(--surface);border-radius:var(--radius-sm);padding:12px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:500">Ativar compartilhamento</div>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="sh-enabled" ${p.share_enabled?'checked':''} style="width:16px;height:16px;accent-color:var(--has)">
+        <span style="font-size:13px">Tornar acervo público</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="sh-main" ${p.share_main_shirts!==false?'checked':''} style="width:16px;height:16px;accent-color:var(--has)">
+        <span style="font-size:13px">Incluir grades de times favoritos</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+        <input type="checkbox" id="sh-others" ${p.share_other_shirts!==false?'checked':''} style="width:16px;height:16px;accent-color:var(--has)">
+        <span style="font-size:13px">Incluir outras camisas</span>
+      </label>
+    </div>`;
+  document.getElementById('m-actions').innerHTML=`
+    <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+    ${p.username&&p.share_enabled?`<button class="btn" onclick="window.open('${url}','_blank')" style="white-space:nowrap">Ver público ↗</button>`:''}
+    <button class="btn-save" onclick="saveShareSettings()">Salvar</button>`;
+  openModal();
+}
+
+async function saveShareSettings(){
+  const username=document.getElementById('sh-username').value.trim().toLowerCase();
+  const enabled=document.getElementById('sh-enabled').checked;
+  const main=document.getElementById('sh-main').checked;
+  const others=document.getElementById('sh-others').checked;
+
+  if(username && username!==_profile.username){
+    const{data:existing}=await sb.from('profiles').select('id').eq('username',username).maybeSingle();
+    if(existing){alert(`O @${username} já está em uso.`);return;}
+  }
+
+  const updates={username:username||null,share_enabled:enabled,share_main_shirts:main,share_other_shirts:others};
+  const{error}=await sb.from('profiles').update(updates).eq('id',_uid);
+  if(error){alert('Erro ao salvar: '+error.message);return;}
+  Object.assign(_profile,updates);
+  toast('Configurações salvas!');
+  closeModal();
+  // atualizar header
+  startApp();
+}
+
+/* ── VISUALIZAÇÃO PÚBLICA ── */
+async function loadPublicView(username){
+  document.getElementById('loading').style.display='flex';
+  // buscar perfil pelo username
+  const{data:prof}=await sb.from('profiles').select('*').eq('username',username).eq('share_enabled',true).maybeSingle();
+  document.getElementById('loading').style.display='none';
+  document.getElementById('public-view').style.display='block';
+
+  if(!prof){document.getElementById('pub-empty').style.display='block';return;}
+
+  document.getElementById('pub-name').textContent=prof.name;
+  document.getElementById('pub-username').textContent=`@${prof.username}`;
+
+  const[teamsRes,othRes]=await Promise.all([
+    prof.share_main_shirts!==false?sb.from('favorite_teams').select('*').eq('user_id',prof.id).order('position'):Promise.resolve({data:[]}),
+    prof.share_other_shirts!==false?sb.from('other_shirts').select('*').eq('user_id',prof.id):Promise.resolve({data:[]})
+  ]);
+  const teams=teamsRes.data||[];
+  const others=othRes.data||[];
+
+  let shirts={};
+  if(teams.length){
+    const{data:sh}=await sb.from('main_shirts').select('*').eq('user_id',prof.id);
+    (sh||[]).forEach(s=>{if(!shirts[s.team_id])shirts[s.team_id]={};shirts[s.team_id][gkey(s.year,s.variant)]=s;});
+  }
+
+  const bar=document.getElementById('pub-tabs');
+  const wrap=document.getElementById('pub-panels');
+  bar.innerHTML='';wrap.innerHTML='';
+
+  teams.forEach((team,i)=>{
+    const tab=document.createElement('button');
+    tab.className='tab'+(i===0?' active':'');
+    tab.textContent='⚽ '+team.name;
+    tab.onclick=()=>{
+      document.querySelectorAll('#pub-tabs .tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('#pub-panels .tab-panel').forEach(p=>p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('pub-panel-'+team.id).classList.add('active');
+    };
+    bar.appendChild(tab);
+
+    const panel=document.createElement('div');
+    panel.className='tab-panel'+(i===0?' active':'');
+    panel.id='pub-panel-'+team.id;
+    panel.innerHTML=buildPublicGrade(team,shirts[team.id]||{});
+    wrap.appendChild(panel);
+  });
+
+  if(others.length||prof.share_other_shirts!==false){
+    const tabO=document.createElement('button');
+    tabO.className='tab'+(teams.length===0?' active':'');
+    tabO.textContent='🌍 Outras camisas';
+    tabO.onclick=()=>{
+      document.querySelectorAll('#pub-tabs .tab').forEach(t=>t.classList.remove('active'));
+      document.querySelectorAll('#pub-panels .tab-panel').forEach(p=>p.classList.remove('active'));
+      tabO.classList.add('active');
+      document.getElementById('pub-panel-others').classList.add('active');
+    };
+    bar.appendChild(tabO);
+
+    const panelO=document.createElement('div');
+    panelO.className='tab-panel'+(teams.length===0?' active':'');
+    panelO.id='pub-panel-others';
+    panelO.innerHTML=buildPublicCards(others);
+    wrap.appendChild(panelO);
+  }
+}
+
+function buildPublicGrade(team,shirts){
+  const{years,variants}=team;
+  if(!years?.length||!variants?.length) return `<div class="empty-panel"><span class="empty-panel-icon">👕</span><div class="empty-panel-title">Grade vazia</div></div>`;
+  const thead=`<tr><th class="yc"></th>${variants.map(v=>`<th>${v}</th>`).join('')}</tr>`;
+  const tbody=years.map(y=>{
+    const cells=variants.map(v=>{
+      const s=shirts[gkey(y,v)];
+      if(s){
+        const img=s.img?`<img class="cell-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:`<div class="cell-nimg">👕</div>`;
+        const num=s.number?`<span class="cell-num">${s.number}</span>`:`<span class="cell-num" style="color:var(--hint)">—</span>`;
+        return`<td class="sc"><div class="cell ${s.status}" onclick="openPublicDetail(${JSON.stringify(s).replace(/"/g,'&quot;')})">${img}<div class="cell-foot">${num}<span class="tag tag-${s.status}">${s.status==='has'?'tenho':'quero'}</span></div></div></td>`;
+      }
+      return`<td class="sc"><div class="cell" style="opacity:.25"><div class="cell-plus">—</div></div></td>`;
+    });
+    return`<tr><td class="yr">${y}</td>${cells.join('')}</tr>`;
+  }).join('');
+  return`<div style="overflow-x:auto"><div class="grid-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div></div>`;
+}
+
+function buildPublicCards(others){
+  if(!others.length) return`<div class="empty-panel"><span class="empty-panel-icon">👕</span><div class="empty-panel-title">Nenhuma camisa</div></div>`;
+  return`<div class="cards">${others.map(s=>{
+    const img=s.img?`<img class="card-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:`<div class="card-nimg">👕</div>`;
+    return`<div class="card ${s.status}" onclick="openPublicDetail(${JSON.stringify(s).replace(/"/g,'&quot;')})">${img}<div class="card-body"><div class="card-top"><div class="card-team">${s.team||''}</div><div class="card-num">${s.number||'—'}</div></div><div class="card-sub">${s.year||''}${s.year&&s.variant?' · ':''}${s.variant||''}</div><div class="card-foot"><span class="card-liga">${s.league||''}</span><span class="tag tag-${s.status}">${s.status==='has'?'tenho':'quero'}</span></div></div></div>`;
+  }).join('')}</div>`;
+}
+
+function openPublicDetail(s){
+  if(typeof s==='string') s=JSON.parse(s);
+  const cp={novo:'Novo/excelente',bom:'Bom',regular:'Regular',desgastado:'Desgastado'};
+  document.getElementById('m-title').textContent=s.team||(s.variant+' '+s.year);
+  document.getElementById('m-body').innerHTML=
+    detailImgs(s)+
+    `<div style="margin-bottom:10px"><span class="tag tag-${s.status}" style="font-size:11px;padding:3px 10px">${s.status==='has'?'tenho':'quero'}</span></div>`+
+    (s.number?`<div class="detail-row"><span>Número</span><span style="font-size:1.1rem;font-weight:500">${s.number}</span></div>`:'')+
+    (s.year?`<div class="detail-row"><span>Ano</span><span>${s.year}</span></div>`:'')+
+    (s.variant?`<div class="detail-row"><span>Tipo</span><span>${s.variant}</span></div>`:'')+
+    (s.league?`<div class="detail-row"><span>Liga</span><span>${s.league}</span></div>`:'')+
+    (s.brand?`<div class="detail-row"><span>Fabricante</span><span>${s.brand}</span></div>`:'')+
+    (s.size?`<div class="detail-row"><span>Tamanho</span><span>${s.size}</span></div>`:'')+
+    (s.obs?`<p class="detail-obs">${s.obs}</p>`:'');
+  document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Fechar</button>`;
+  openModal();
+}
 
 /* ── LOAD DATA ── */
 /* ── HELPERS ── */
@@ -1084,10 +1302,19 @@ function closeModal(){document.getElementById('modal').classList.remove('open');
 sb.auth.onAuthStateChange((event)=>{
   if(event==='SIGNED_OUT'){_uid=null;_profile=null;_loading=false;_teams=[];_shirts={};_others=[];document.getElementById('app').style.display='none';document.getElementById('ob').style.display='none';showAuth();}
 });
-sb.auth.getSession().then(({data:{session}})=>{
-  if(session?.user)loadUserData(session.user.id);
-  else{showLoading(false);showAuth();}
-}).catch(()=>{showLoading(false);showAuth();});
+
+// Detectar se é visualização pública via hash #/u/username
+const hashMatch=location.hash.match(/^#\/u\/(.+)$/);
+if(hashMatch){
+  const pubUsername=hashMatch[1];
+  document.getElementById('loading').style.display='none';
+  loadPublicView(pubUsername);
+} else {
+  sb.auth.getSession().then(({data:{session}})=>{
+    if(session?.user)loadUserData(session.user.id);
+    else{showLoading(false);showAuth();}
+  }).catch(()=>{showLoading(false);showAuth();});
+}
 </script>
 </body>
 </html>
