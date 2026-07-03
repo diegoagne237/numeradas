@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Numeradas</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#ffffff;--surface:#f8f8f6;--surface2:#f0f0ed;--border:#e8e8e4;--border2:#d0d0cc;--text:#1a1a1a;--muted:#888;--hint:#bbb;--has:#1D9E75;--has-bg:#E1F5EE;--has-text:#085041;--want:#378ADD;--want-bg:#E6F1FB;--want-text:#0C447C;--radius:10px;--radius-sm:6px;--radius-lg:14px}
+@media(prefers-color-scheme:dark){:root{--bg:#0f0f0f;--surface:#1a1a1a;--surface2:#222;--border:#2e2e2e;--border2:#3a3a3a;--text:#f0f0f0;--muted:#888;--hint:#444;--has-bg:#0d2e1a;--has-text:#5DCAA5;--want-bg:#0d1e3a;--want-text:#85B7EB}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--surface);color:var(--text);min-height:100vh}
+input,select,textarea,button{font-family:inherit}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--bg);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem}
+#loading.hidden{display:none}
+.spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--text);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-logo{font-size:1.8rem;font-weight:500;letter-spacing:-.5px}
+.load-logo sup{font-size:.6rem;font-weight:400;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;vertical-align:super;margin-left:3px}
+
+/* AUTH */
+#auth{position:fixed;inset:0;background:var(--bg);z-index:1000;display:none;align-items:center;justify-content:center;padding:1.5rem}
+.auth-box{width:100%;max-width:360px}
+.auth-logo{font-size:2rem;font-weight:500;letter-spacing:-.5px;margin-bottom:.4rem}
+.auth-logo sup{font-size:.65rem;font-weight:400;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;vertical-align:super;margin-left:3px}
+.auth-sub{font-size:14px;color:var(--muted);margin-bottom:2rem;line-height:1.5}
+.auth-tabs{display:flex;border-bottom:0.5px solid var(--border);margin-bottom:1.5rem}
+.auth-tab{flex:1;padding:10px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;text-transform:uppercase;letter-spacing:.05em;transition:color .15s}
+.auth-tab.active{color:var(--text);border-bottom-color:var(--text)}
+.auth-form{display:none;flex-direction:column;gap:12px}
+.auth-form.active{display:flex}
+.auth-field label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.auth-field input{width:100%;background:var(--surface);border:0.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:10px 12px;font-size:14px;outline:none}
+.auth-field input:focus{border-color:var(--border2)}
+.auth-field input::placeholder{color:var(--hint)}
+.auth-btn{width:100%;height:44px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;transition:opacity .15s;margin-top:4px}
+.auth-btn:hover{opacity:.85}.auth-btn:disabled{opacity:.3;cursor:not-allowed}
+.auth-err{font-size:13px;color:#dc2626;background:#fef2f2;border:0.5px solid #fca5a5;border-radius:var(--radius-sm);padding:8px 12px;display:none}
+.auth-err.show{display:block}
+
+/* ONBOARDING */
+#ob{position:fixed;inset:0;background:var(--bg);z-index:900;display:none;flex-direction:column;align-items:center}
+#ob .ob-top,#ob .ob-foot{width:100%;max-width:800px;padding-left:1.5rem;padding-right:1.5rem}
+.ob-top{padding-top:1.5rem;border-bottom:0.5px solid var(--border)}
+.ob-logo{font-size:1.6rem;font-weight:500;letter-spacing:-.5px;line-height:1;margin-bottom:1.25rem}
+.ob-logo sup{font-size:.65rem;font-weight:400;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;vertical-align:super;margin-left:3px}
+.ob-steps{display:flex;gap:6px;padding-bottom:1rem}
+.ob-dot{height:3px;border-radius:99px;background:var(--border);flex:1;transition:background .3s}
+.ob-dot.done{background:var(--has)}.ob-dot.active{background:var(--text)}
+.ob-body{flex:1;padding:2rem 1.5rem 1rem;display:flex;flex-direction:column;justify-content:center;gap:1.25rem;width:100%;max-width:800px;overflow-y:auto}
+.ob-foot{padding-top:1rem;padding-bottom:1.5rem;display:flex;gap:10px;border-top:0.5px solid var(--border)}
+.ob-big{font-size:3.5rem;font-weight:500;letter-spacing:-3px;color:var(--border2);line-height:1}
+.ob-label{font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.ob-title{font-size:1.4rem;font-weight:500;line-height:1.25;letter-spacing:-.3px;margin-top:4px}
+.ob-sub{font-size:14px;color:var(--muted);line-height:1.6}
+.ob-screen{display:none;flex-direction:column;gap:1.25rem}
+.ob-screen.active{display:flex;animation:fdin .2s ease}
+@keyframes fdin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.ob-opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ob-opt{border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem;cursor:pointer;transition:all .15s;background:var(--surface);text-align:left;width:100%}
+.ob-opt:hover{border-color:var(--border2);background:var(--surface2)}
+.ob-opt.sel{border:1.5px solid var(--has);background:var(--has-bg)}
+.ob-opt-icon{font-size:1.4rem;margin-bottom:.5rem}
+.ob-opt-title{font-size:13px;font-weight:500;color:var(--text)}
+.ob-opt-desc{font-size:12px;color:var(--muted);margin-top:2px}
+.vtags{display:flex;flex-wrap:wrap;gap:8px}
+.vtag{border:0.5px solid var(--border);border-radius:99px;padding:6px 14px;cursor:pointer;font-size:13px;color:var(--muted);background:var(--bg);transition:all .15s;display:flex;align-items:center;gap:5px}
+.vtag:hover{border-color:var(--border2);color:var(--text)}
+.vtag.sel{border:1.5px solid var(--has);background:var(--has-bg);color:var(--has-text)}
+.vtag .ck{display:none;font-size:12px}.vtag.sel .ck{display:inline}
+.ob-done-num{font-size:4rem;font-weight:500;letter-spacing:-3px;color:var(--has);line-height:1}
+.ob-pills{display:flex;flex-wrap:wrap;gap:8px}
+.ob-pill{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:0.5px solid var(--border);border-radius:99px;padding:4px 12px;font-size:12px;color:var(--muted)}
+
+/* BOTÕES */
+.btn-next{flex:1;height:42px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius);font-size:14px;font-weight:500;cursor:pointer;transition:opacity .15s}
+.btn-next:hover{opacity:.85}.btn-next:disabled{opacity:.25;cursor:not-allowed}
+.btn-back{height:42px;padding:0 18px;background:transparent;border:0.5px solid var(--border2);border-radius:var(--radius);font-size:14px;cursor:pointer;color:var(--muted)}
+.btn-back:hover{color:var(--text)}
+.btn-skip{height:42px;padding:0 14px;background:transparent;border:none;font-size:13px;cursor:pointer;color:var(--muted)}
+.btn-skip:hover{color:var(--text)}
+.btn{height:36px;padding:0 14px;font-size:12px;font-weight:500;cursor:pointer;border-radius:var(--radius-sm);border:0.5px solid var(--border2);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;gap:5px;white-space:nowrap;text-transform:uppercase;letter-spacing:.04em;transition:all .15s}
+.btn:hover{background:var(--surface2)}
+.btn-green{background:var(--has-bg);border-color:var(--has);color:var(--has-text)}
+.btn-green:hover{background:var(--has);color:#000}
+
+/* APP */
+#app{display:none;max-width:800px;margin:0 auto;background:var(--bg);min-height:100vh}
+.hdr{padding:1.25rem 1.5rem .85rem;border-bottom:0.5px solid var(--border);display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.logo{font-size:1.8rem;font-weight:500;letter-spacing:-.5px;line-height:1}
+.logo sup{font-size:.6rem;font-weight:400;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;vertical-align:super;margin-left:3px}
+.hdr-right{display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap}
+.hdr-nums{display:flex;gap:1.25rem}
+.hnum{text-align:right}
+.hnum-val{font-size:2rem;font-weight:500;line-height:1;letter-spacing:-1px}
+.hnum-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:1px}
+.hdr-user{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.hdr-user-name{font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px}
+.hdr-user-email{font-size:11px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logout-btn{height:26px;padding:0 8px;background:transparent;border:0.5px solid var(--border);border-radius:var(--radius-sm);font-size:11px;cursor:pointer;color:var(--muted);white-space:nowrap}
+.logout-btn:hover{color:var(--text);border-color:var(--border2)}
+
+/* TABS */
+.tabs-bar{display:flex;padding:0 1rem;border-bottom:0.5px solid var(--border);align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.tabs-bar::-webkit-scrollbar{display:none}
+.tab{padding:11px 12px;font-size:12px;font-weight:500;cursor:pointer;border:none;background:transparent;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;letter-spacing:.04em;text-transform:uppercase;transition:color .15s;white-space:nowrap;flex-shrink:0}
+.tab:hover{color:var(--text)}.tab.active{color:var(--text);border-bottom-color:var(--text)}
+.tab-add{margin-left:8px;flex-shrink:0;height:28px;padding:0 10px;font-size:11px;font-weight:500;cursor:pointer;border-radius:var(--radius-sm);border:0.5px solid var(--has);background:var(--has-bg);color:var(--has-text);white-space:nowrap;letter-spacing:.03em;text-transform:uppercase;transition:all .15s}
+.tab-add:hover{background:var(--has);color:#000}
+.tab-panel{display:none;padding:1rem}.tab-panel.active{display:block}
+
+/* CHIPS e TOOLBAR */
+.toolbar{display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;align-items:center}
+.search{flex:1;min-width:120px;height:36px;background:var(--surface);border:0.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:0 12px;font-size:13px;outline:none}
+.search::placeholder{color:var(--hint)}.search:focus{border-color:var(--border2)}
+.chips{display:flex;gap:6px;margin-bottom:1rem;flex-wrap:wrap}
+.chip{font-size:12px;background:var(--surface);border:0.5px solid var(--border);border-radius:99px;padding:4px 12px;color:var(--muted);cursor:pointer;transition:all .15s;white-space:nowrap}
+.chip b{font-weight:500;color:var(--text)}.chip:hover{border-color:var(--border2)}
+.chip.f-has{background:var(--has-bg);border-color:var(--has);color:var(--has-text)}.chip.f-has b{color:var(--has-text)}
+.chip.f-want{background:var(--want-bg);border-color:var(--want);color:var(--want-text)}.chip.f-want b{color:var(--want-text)}
+.chip.f-all{background:var(--surface2);border-color:var(--border2);color:var(--text)}
+
+/* ESTADO VAZIO */
+.empty-panel{text-align:center;padding:4rem 1.5rem;color:var(--muted)}
+.empty-panel-icon{font-size:3rem;margin-bottom:1rem;display:block}
+.empty-panel-title{font-size:16px;font-weight:500;color:var(--text);margin-bottom:.5rem}
+.empty-panel-sub{font-size:13px;margin-bottom:1.5rem;line-height:1.6}
+.btn-big{height:48px;padding:0 28px;font-size:14px;font-weight:500;cursor:pointer;border-radius:var(--radius);border:none;background:var(--text);color:var(--bg);display:inline-flex;align-items:center;gap:8px;transition:opacity .15s}
+.btn-big:hover{opacity:.85}
+
+/* GRADE */
+.grid-wrap{border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+table{border-collapse:collapse;width:100%;min-width:460px}
+thead th{font-size:11px;font-weight:500;color:var(--muted);padding:10px 5px;text-align:center;text-transform:uppercase;letter-spacing:.07em;background:var(--surface);border-bottom:0.5px solid var(--border)}
+thead th.yc{width:62px;text-align:left;padding-left:14px}
+.col-label{cursor:pointer;border-radius:4px;padding:2px 4px;margin:-2px -4px;transition:background .15s;display:inline-block}
+.col-label:hover{background:var(--surface2)}
+tbody tr{border-top:0.5px solid var(--border)}
+tbody tr:hover{background:var(--surface)}
+td.yr{font-size:.95rem;font-weight:500;color:var(--muted);padding:5px 2px 5px 8px;vertical-align:middle;white-space:nowrap;letter-spacing:-.3px}
+td.sc{padding:4px 3px;vertical-align:top;height:1px}
+.cell{border-radius:8px;border:0.5px solid var(--border);background:var(--bg);cursor:pointer;transition:border-color .15s;height:100%;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;overflow:hidden}
+.cell:hover{border-color:var(--border2)}
+.cell.has{border:1.5px solid var(--has)}.cell.want{border:1.5px solid var(--want)}
+.cell-img{width:100%;height:100px;object-fit:cover;object-position:center center;display:block;background:var(--surface)}
+.cell-nimg{width:100%;height:46px;display:flex;align-items:center;justify-content:center;color:var(--hint);font-size:22px}
+.cell-foot{width:100%;padding:5px 7px;display:flex;align-items:center;justify-content:space-between;gap:4px;border-top:0.5px solid var(--border)}
+.cell-num{font-size:15px;font-weight:500;color:var(--muted);letter-spacing:-.5px;line-height:1}
+.tag{font-size:10px;font-weight:500;padding:2px 8px;border-radius:99px;letter-spacing:.04em;text-transform:lowercase;white-space:nowrap}
+.tag-has{background:var(--has-bg);color:var(--has-text)}.tag-want{background:var(--want-bg);color:var(--want-text)}
+.cell-plus{width:100%;min-height:88px;display:flex;align-items:center;justify-content:center;color:var(--hint);font-size:20px}
+
+/* CARDS */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px}
+.card{background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;cursor:pointer;transition:border-color .15s}
+.card:hover{border-color:var(--border2)}
+.card.has{border-top:2px solid var(--has)}.card.want{border-top:2px solid var(--want)}
+.card-img{width:100%;height:72px;object-fit:cover;object-position:center center;display:block;background:var(--surface)}
+.card-nimg{width:100%;height:72px;display:flex;align-items:center;justify-content:center;background:var(--surface);color:var(--hint);font-size:28px}
+.card-body{padding:10px 10px 12px}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:4px;margin-bottom:3px}
+.card-team{font-size:13px;font-weight:500;line-height:1.3}
+.card-num{font-size:1.35rem;font-weight:500;letter-spacing:-1px;line-height:1;color:var(--muted)}
+.card-sub{font-size:11px;color:var(--muted);margin-top:1px}
+.card-foot{margin-top:8px;display:flex;align-items:center;justify-content:space-between}
+.card-liga{font-size:10px;color:var(--hint);text-transform:uppercase;letter-spacing:.06em}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:1rem}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:1.5rem;width:340px;max-width:100%;max-height:92vh;overflow-y:auto}
+.modal h3{font-size:1.1rem;font-weight:500;margin-bottom:1rem}
+.field{margin-bottom:11px}
+.field label{display:block;font-size:11px;font-weight:500;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+.field input,.field select,.field textarea{width:100%;background:var(--surface);border:0.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--border2)}
+.field textarea{height:56px;resize:vertical}
+.field input::placeholder,.field textarea::placeholder{color:var(--hint)}
+.modal-actions{display:flex;gap:8px;margin-top:1.1rem}
+.btn-save{flex:1;height:40px;background:var(--text);color:var(--bg);border:none;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;text-transform:uppercase;letter-spacing:.04em}
+.btn-save:hover{opacity:.85}
+.btn-cancel{height:40px;padding:0 14px;background:transparent;border:0.5px solid var(--border2);border-radius:var(--radius-sm);font-size:13px;cursor:pointer;color:var(--muted)}
+.btn-cancel:hover{color:var(--text)}
+.btn-del{height:40px;padding:0 12px;background:transparent;border:0.5px solid #fca5a5;color:#dc2626;border-radius:var(--radius-sm);font-size:13px;cursor:pointer}
+.detail-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:0.5px solid var(--border)}
+.detail-row span:first-child{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:500}
+.detail-img{width:100%;border-radius:var(--radius-sm);margin-bottom:12px;display:block;object-fit:contain;max-height:220px;background:var(--surface)}
+.img-preview{width:100%;border-radius:var(--radius-sm);margin-top:8px;display:none;object-fit:contain;max-height:80px;background:var(--surface)}
+.upload-area{width:100%;border:1.5px dashed var(--border2);border-radius:var(--radius-sm);padding:14px;text-align:center;cursor:pointer;font-size:13px;color:var(--muted);position:relative;transition:border-color .15s}
+.upload-area:hover{border-color:var(--has);color:var(--text)}
+.upload-area input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.img-tab{flex:1;padding:6px;font-size:12px;font-weight:500;border-radius:var(--radius-sm);cursor:pointer;border:0.5px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s}
+.img-tab.active{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+.detail-obs{margin-top:10px;font-size:13px;color:var(--muted);line-height:1.6}
+.status-row{display:flex;gap:8px;margin-bottom:11px}
+.status-btn{flex:1;padding:9px;font-size:12px;font-weight:500;border-radius:var(--radius-sm);cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;transition:all .15s}
+.status-btn.sel-has{border-color:var(--has);background:var(--has-bg);color:var(--has-text)}
+.status-btn.sel-want{border-color:var(--want);background:var(--want-bg);color:var(--want-text)}
+
+/* MINI MODAL */
+.mini-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center;padding:1rem}
+.mini-bg.open{display:flex}
+.mini-modal{background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius-lg);padding:1.25rem;width:290px;max-width:100%}
+.mini-modal h4{font-size:14px;font-weight:500;margin-bottom:.75rem}
+.mini-tabs{display:flex;gap:6px;margin-bottom:.75rem}
+.mini-tab{flex:1;padding:6px;font-size:12px;font-weight:500;border-radius:var(--radius-sm);cursor:pointer;border:0.5px solid var(--border);background:var(--surface);color:var(--muted);text-transform:uppercase;letter-spacing:.04em;transition:all .15s}
+.mini-tab.active{background:var(--surface2);color:var(--text);border-color:var(--border2)}
+.mini-modal input,.mini-modal select{width:100%;background:var(--surface);border:0.5px solid var(--border);color:var(--text);border-radius:var(--radius-sm);padding:8px 10px;font-size:14px;outline:none;margin-bottom:.75rem}
+.mini-actions{display:flex;gap:8px}
+.mini-actions .btn-save{flex:1}
+
+.toast{position:fixed;bottom:1.5rem;right:1.5rem;background:var(--text);color:var(--bg);padding:8px 16px;border-radius:var(--radius);font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;z-index:999}
+.toast.show{opacity:1}
+@media(max-width:480px){
+  .hdr{padding:.75rem .75rem .6rem}
+  .hdr-right{gap:.75rem}
+  .hnum-val{font-size:1.6rem}
+  .hdr-user-email{display:none}
+  .tabs-bar{padding:0 .5rem}
+  .tab-panel{padding:.75rem .5rem}
+  .grid-wrap table{min-width:300px}
+  thead th{font-size:10px;padding:8px 3px}
+  .modal{width:calc(100vw - 2rem)}
+  .ob-body{padding:1.5rem 1rem .75rem}
+  .ob-foot{padding:.75rem 1rem 1.25rem}
+  .ob-big{font-size:2.5rem}
+  .cell-img{height:56px}
+  .cell{min-height:78px}
+}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="load-logo">numeradas<sup>acervo</sup></div>
+  <div class="spinner"></div>
+</div>
+
+<div id="auth">
+  <div class="auth-box">
+    <div class="auth-logo">numeradas<sup>acervo</sup></div>
+    <div class="auth-sub">Seu acervo de camisas de futebol.</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchAuth('login')">Entrar</button>
+      <button class="auth-tab" onclick="switchAuth('signup')">Criar conta</button>
+    </div>
+    <div class="auth-err" id="auth-err"></div>
+    <form class="auth-form active" id="form-login" onsubmit="doLogin(event)">
+      <div class="auth-field"><label>E-mail</label><input type="email" id="login-email" placeholder="seu@email.com" required></div>
+      <div class="auth-field"><label>Senha</label><input type="password" id="login-pass" placeholder="••••••••" required></div>
+      <button type="submit" class="auth-btn" id="btn-login">Entrar</button>
+    </form>
+    <form class="auth-form" id="form-signup" onsubmit="doSignup(event)">
+      <div class="auth-field"><label>Seu nome</label><input type="text" id="signup-name" placeholder="Como você se chama" required></div>
+      <div class="auth-field"><label>E-mail</label><input type="email" id="signup-email" placeholder="seu@email.com" required></div>
+      <div class="auth-field"><label>Senha</label><input type="password" id="signup-pass" placeholder="Mínimo 6 caracteres" minlength="6" required></div>
+      <button type="submit" class="auth-btn" id="btn-signup">Criar conta</button>
+    </form>
+  </div>
+</div>
+
+<div id="ob">
+  <div class="ob-top">
+    <div class="ob-logo">numeradas<sup>acervo</sup></div>
+    <div class="ob-steps">
+      <div class="ob-dot active" id="od0"></div>
+      <div class="ob-dot" id="od1"></div>
+      <div class="ob-dot" id="od2"></div>
+    </div>
+  </div>
+  <div class="ob-body">
+    <div class="ob-screen active" id="os0">
+      <div class="ob-big">01</div>
+      <div><div class="ob-label">seu acervo</div><div class="ob-title">Você torce pra algum time em especial?</div></div>
+      <div class="ob-sub">Se sim, criamos uma grade dedicada com anos e variantes só pra ele.</div>
+      <div class="ob-opts">
+        <button class="ob-opt" id="oopt-sim" onclick="selTime('sim')">
+          <div class="ob-opt-icon">⚽</div>
+          <div class="ob-opt-title">Sim, tenho um time</div>
+          <div class="ob-opt-desc">Grade dedicada com anos e variantes</div>
+        </button>
+        <button class="ob-opt" id="oopt-nao" onclick="selTime('nao')">
+          <div class="ob-opt-icon">🌍</div>
+          <div class="ob-opt-title">Não, coleciono de vários</div>
+          <div class="ob-opt-desc">Catálogo geral de qualquer time</div>
+        </button>
+      </div>
+    </div>
+    <div class="ob-screen" id="os1">
+      <div class="ob-big">02</div>
+      <div><div class="ob-label">seu time</div><div class="ob-title">Qual é o time?</div></div>
+      <input type="text" id="inp-time" placeholder="Ex: Grêmio, Flamengo, Ajax..." oninput="obCheck()" style="font-size:1rem;padding:10px 14px;border-radius:var(--radius);background:var(--surface);border:0.5px solid var(--border);color:var(--text);outline:none;width:100%">
+      <div>
+        <div class="ob-label" style="margin-bottom:.75rem">variantes de uniforme</div>
+        <div class="vtags" id="ob-vtags">
+          <div class="vtag sel" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Titular</div>
+          <div class="vtag sel" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Visitante</div>
+          <div class="vtag sel" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Terceiro</div>
+          <div class="vtag" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Goleiro</div>
+          <div class="vtag" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Especial</div>
+          <div class="vtag" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Retrô</div>
+        </div>
+      </div>
+    </div>
+    <div class="ob-screen" id="os2">
+      <div class="ob-done-num">✓</div>
+      <div><div class="ob-label">tudo pronto</div><div class="ob-title" id="ob-done-title">Acervo criado!</div></div>
+      <div class="ob-sub" id="ob-done-sub">Agora é só começar a catalogar suas camisas.</div>
+      <div class="ob-pills" id="ob-done-pills"></div>
+    </div>
+  </div>
+  <div class="ob-foot">
+    <button class="btn-back" id="ob-back" onclick="obBack()" style="display:none">Voltar</button>
+    <button class="btn-skip" id="ob-skip" onclick="obSkip()" style="display:none">Pular</button>
+    <button class="btn-next" id="ob-next" onclick="obNext()" disabled>Continuar</button>
+  </div>
+</div>
+
+<div id="app">
+  <header class="hdr">
+    <div class="logo">numeradas<sup>acervo</sup></div>
+    <div class="hdr-right">
+      <div class="hdr-nums">
+        <div class="hnum"><div class="hnum-val" id="hs-tenho" style="color:var(--has)">0</div><div class="hnum-label">tenho</div></div>
+        <div class="hnum"><div class="hnum-val" id="hs-quero" style="color:var(--want)">0</div><div class="hnum-label">quero</div></div>
+        <div class="hnum"><div class="hnum-val" id="hs-times" style="color:var(--muted)">0</div><div class="hnum-label">times</div></div>
+      </div>
+      <div class="hdr-user">
+        <div class="hdr-user-name">
+          <span id="hdr-name"></span>
+          <button class="logout-btn" onclick="doLogout()">sair</button>
+        </div>
+        <span class="hdr-user-email" id="hdr-email"></span>
+      </div>
+    </div>
+  </header>
+  <div class="tabs-bar" id="tabs-bar">
+    <!-- tabs geradas dinamicamente -->
+    <button class="tab-add" onclick="openAddTeam()">+ Adicionar time</button>
+  </div>
+  <div id="panels-wrap">
+    <!-- painéis gerados dinamicamente -->
+  </div>
+</div>
+
+<div class="modal-bg" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal"><h3 id="m-title"></h3><div id="m-body"></div><div class="modal-actions" id="m-actions"></div></div>
+</div>
+<div class="mini-bg" id="mini-modal" onclick="if(event.target===this)closeMini()">
+  <div class="mini-modal">
+    <h4 id="mini-title"></h4>
+    <div class="mini-tabs" style="display:none">
+      <button class="mini-tab active" id="mt-add">Adicionar</button>
+      <button class="mini-tab" id="mt-rem">Remover</button>
+    </div>
+    <div id="mt-add-sec"><input type="text" id="mini-inp" placeholder=""></div>
+    <div id="mt-rem-sec" style="display:none"><select id="mini-sel"></select></div>
+    <div class="mini-actions">
+      <button class="btn-cancel" onclick="closeMini()">Cancelar</button>
+      <button class="btn-save" id="mini-ok" onclick="miniConfirm()">Adicionar</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast">Salvo ✓</div>
+
+<script>
+const SUPA_URL = 'https://etslknhukspojcbmntsx.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0c2xrbmh1a3Nwb2pjYm1udHN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyMDUwNzgsImV4cCI6MjA5NTc4MTA3OH0.5F79nyqZINTxr8saBitaR4NLgoK9HElTw_Z2oU3USqQ';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+let _uid = null, _profile = null, _loading = false;
+let _teams = [];       // favorite_teams[]
+let _shirts = {};      // { team_id: { gkey: shirt } }
+let _others = [];      // other_shirts[]
+let _curTeamId = null; // grade ativa
+let _status = 'has', _imgData = '';
+let _gF = '', _oF = '';
+let _obHasTime = null;
+
+/* ── TOAST ── */
+function toast(msg='Salvo ✓'){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000);}
+
+/* ── SHOW/HIDE ── */
+function showLoading(v){const el=document.getElementById('loading');el.style.display=v?'flex':'none';}
+function showAuth(){showLoading(false);const el=document.getElementById('auth');el.style.display='flex';}
+function showOb(){showLoading(false);document.getElementById('ob').style.display='flex';obUpdateDots(0);}
+function showApp(){showLoading(false);document.getElementById('auth').style.display='none';document.getElementById('ob').style.display='none';document.getElementById('app').style.display='block';}
+
+/* ── AUTH ── */
+function switchAuth(tab){
+  document.querySelectorAll('.auth-tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='signup')));
+  document.getElementById('form-login').classList.toggle('active',tab==='login');
+  document.getElementById('form-signup').classList.toggle('active',tab==='signup');
+  document.getElementById('auth-err').classList.remove('show');
+}
+function authErr(msg){const el=document.getElementById('auth-err');el.textContent=msg;el.classList.add('show');}
+
+async function doLogin(e){
+  e.preventDefault();
+  const btn=document.getElementById('btn-login');btn.disabled=true;btn.textContent='Entrando...';
+  const{data,error}=await sb.auth.signInWithPassword({email:document.getElementById('login-email').value,password:document.getElementById('login-pass').value});
+  if(error){btn.disabled=false;btn.textContent='Entrar';authErr(error.message==='Invalid login credentials'?'E-mail ou senha incorretos.':error.message);}
+  else if(data?.user){document.getElementById('auth').style.display='none';showLoading(true);loadUserData(data.user.id);}
+}
+
+async function doSignup(e){
+  e.preventDefault();
+  const btn=document.getElementById('btn-signup');btn.disabled=true;btn.textContent='Criando conta...';
+  const name=document.getElementById('signup-name').value.trim();
+  const{error}=await sb.auth.signUp({email:document.getElementById('signup-email').value,password:document.getElementById('signup-pass').value,options:{data:{name}}});
+  btn.disabled=false;btn.textContent='Criar conta';
+  if(error)authErr(error.message);
+  else authErr('Conta criada! Verifique seu e-mail se necessário, ou faça login.');
+}
+
+async function doLogout(){await sb.auth.signOut();_uid=null;_profile=null;_loading=false;document.getElementById('app').style.display='none';showAuth();}
+
+/* ── LOAD DATA ── */
+/* ── HELPERS ── */
+function gkey(y,v){return y+'__'+v;}
+function cleanVariant(v){ return v ? v.replace(/^[✓√\s]+/,'').trim() : v; }
+
+async function loadUserData(uid){
+  if(_loading)return;
+  _loading=true;_uid=uid;showLoading(true);
+  try{
+    await new Promise(r=>setTimeout(r,400));
+    const[profRes,teamsRes,othRes]=await Promise.all([
+      sb.from('profiles').select('*').eq('id',uid).maybeSingle(),
+      sb.from('favorite_teams').select('*').eq('user_id',uid).order('position'),
+      sb.from('other_shirts').select('*').eq('user_id',uid)
+    ]);
+    if(!profRes.data){
+      const{data:np}=await sb.from('profiles').upsert({id:uid,name:'Usuário'}).select().maybeSingle();
+      _profile=np||{id:uid,name:'Usuário'};
+    } else _profile=profRes.data;
+    _teams=teamsRes.data||[];
+    _teams.forEach(t=>{ t.variants=(t.variants||[]).map(cleanVariant); });
+    _others=othRes.data||[];
+    _shirts={};
+    // carregar camisas de cada time
+    if(_teams.length){
+      const shirtsRes=await sb.from('main_shirts').select('*').eq('user_id',uid);
+      (shirtsRes.data||[]).forEach(s=>{
+        if(!_shirts[s.team_id])_shirts[s.team_id]={};
+        _shirts[s.team_id][gkey(s.year,s.variant)]=s;
+      });
+    }
+    if(!_teams.length&&!_others.length&&!_profile.onboarding_done){showOb();}
+    else{startApp();}
+  }catch(e){console.error(e);_loading=false;showLoading(false);showAuth();}
+}
+
+/* ── ONBOARDING ── */
+function obUpdateDots(s){for(let i=0;i<3;i++){const d=document.getElementById('od'+i);d.className='ob-dot'+(i<s?' done':i===s?' active':'');}}
+function obShowScreen(n){
+  document.querySelectorAll('.ob-screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('os'+n).classList.add('active');
+  obUpdateDots(n);
+  document.getElementById('ob-back').style.display=n>0?'':'none';
+  document.getElementById('ob-skip').style.display=n===0?'':'none';
+  document.getElementById('ob-next').textContent=n===2?'Entrar no acervo →':'Continuar';
+  obCheck();
+}
+function obCheck(){
+  const btn=document.getElementById('ob-next');
+  const step=parseInt(document.querySelector('.ob-screen.active')?.id?.replace('os','')||'0');
+  if(step===0)btn.disabled=_obHasTime===null;
+  else if(step===1)btn.disabled=document.getElementById('inp-time').value.trim().length<2;
+  else btn.disabled=false;
+}
+async function obNext(){
+  const step=parseInt(document.querySelector('.ob-screen.active').id.replace('os',''));
+  if(step===0){if(_obHasTime==='sim')obShowScreen(1);else await finishOb();}
+  else if(step===1){obBuildDone();obShowScreen(2);}
+  else await finishOb();
+}
+function obBack(){const s=parseInt(document.querySelector('.ob-screen.active').id.replace('os',''));if(s>0)obShowScreen(s-1);}
+async function obSkip(){_obHasTime='nao';await finishOb();}
+function selTime(v){_obHasTime=v;document.getElementById('oopt-sim').classList.toggle('sel',v==='sim');document.getElementById('oopt-nao').classList.toggle('sel',v==='nao');obCheck();}
+function obBuildDone(){
+  const time=document.getElementById('inp-time')?.value.trim()||'';
+  const pills=document.getElementById('ob-done-pills');pills.innerHTML='';
+  if(_obHasTime==='sim'&&time){
+    document.getElementById('ob-done-sub').textContent='A grade do '+time+' está pronta.';
+    const sels=[...document.querySelectorAll('#ob-vtags .vtag.sel')].map(t=>t.childNodes[t.childNodes.length-1].textContent.trim());
+    [time,...sels].forEach(v=>{const p=document.createElement('div');p.className='ob-pill';p.textContent=v;pills.appendChild(p);});
+  }
+}
+async function finishOb(){
+  const btn=document.getElementById('ob-next');btn.disabled=true;btn.textContent='Salvando...';
+  await sb.from('profiles').update({main_team:_obHasTime==='sim'?(document.getElementById('inp-time')?.value.trim()||''):'',onboarding_done:true}).eq('id',_uid);
+  if(_obHasTime==='sim'){
+    const time=document.getElementById('inp-time')?.value.trim()||'';
+    const sels=[...document.querySelectorAll('#ob-vtags .vtag.sel')].map(t=>t.childNodes[t.childNodes.length-1].textContent.trim());
+    const yr=new Date().getFullYear();
+    const years=Array.from({length:10},(_,i)=>yr-i);
+    const{data:team}=await sb.from('favorite_teams').insert({user_id:_uid,name:time,years,variants:sels,position:0}).select().single();
+    if(team)_teams=[team];
+  }
+  _loading=false;
+  startApp();
+}
+
+/* ── APP ── */
+
+function startApp(){
+  // header info
+  document.getElementById('hdr-name').textContent=_profile?.name||'';
+  sb.auth.getUser().then(({data})=>{if(data?.user?.email)document.getElementById('hdr-email').textContent=data.user.email;});
+  buildTabs();
+  updateHeader();
+  showApp();
+}
+
+function buildTabs(){
+  const bar=document.getElementById('tabs-bar');
+  const wrap=document.getElementById('panels-wrap');
+  bar.innerHTML='';
+  wrap.innerHTML='';
+
+  if(_teams.length===0){
+    // Sem time — só aba MINHAS CAMISAS
+    const tab=document.createElement('button');
+    tab.className='tab active';tab.textContent='Minhas camisas';
+    bar.appendChild(tab);
+    const addBtn=document.createElement('button');
+    addBtn.className='tab-add';addBtn.textContent='+ Adicionar time';addBtn.onclick=openAddTeam;
+    bar.appendChild(addBtn);
+    const panel=document.createElement('div');
+    panel.className='tab-panel active';panel.id='panel-others';
+    panel.innerHTML=othersHTML();
+    wrap.appendChild(panel);
+    setTimeout(()=>renderOthers(),0);
+  } else {
+    // Times favoritos
+    _teams.forEach((team,i)=>{
+      const tab=document.createElement('button');
+      tab.className='tab'+(i===0?' active':'');
+      tab.textContent='⚽ '+team.name;
+      tab.onclick=()=>switchToTeam(team.id,tab);
+      tab.dataset.teamId=team.id;
+      bar.appendChild(tab);
+    });
+    // Aba outras camisas
+    const tabOut=document.createElement('button');
+    tabOut.className='tab';tabOut.id='tab-outros-btn';tabOut.textContent='🌍 Outras camisas';
+    tabOut.onclick=()=>switchToOthers(tabOut);
+    bar.appendChild(tabOut);
+    // Botão adicionar time
+    const addBtn=document.createElement('button');
+    addBtn.className='tab-add';addBtn.textContent='+ Adicionar time';addBtn.onclick=openAddTeam;
+    bar.appendChild(addBtn);
+
+    // Painel do primeiro time
+    _teams.forEach((team,i)=>{
+      const panel=document.createElement('div');
+      panel.className='tab-panel'+(i===0?' active':'');
+      panel.id='panel-team-'+team.id;
+      panel.innerHTML=teamPanelHTML(team);
+      wrap.appendChild(panel);
+    });
+    // Painel outros
+    const panelOut=document.createElement('div');
+    panelOut.className='tab-panel';panelOut.id='panel-others';
+    panelOut.innerHTML=othersHTML();
+    wrap.appendChild(panelOut);
+
+    _curTeamId=_teams[0].id;
+    setTimeout(()=>{renderGrade(_teams[0]);renderOthers();},0);
+  }
+}
+
+function switchToTeam(teamId,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-team-'+teamId).classList.add('active');
+  _curTeamId=teamId;
+  const team=_teams.find(t=>t.id===teamId);
+  if(team)renderGrade(team);
+}
+
+function switchToOthers(btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-others').classList.add('active');
+  _curTeamId=null;
+  renderOthers();
+}
+
+function teamPanelHTML(team){
+  return `<div class="chips">
+    <div class="chip f-all" id="gf-all-${team.id}" onclick="setGF('',this,'${team.id}')">Todos</div>
+    <div class="chip" id="gf-has-${team.id}" onclick="setGF('has',this,'${team.id}')">Tenho <b id="g-tenho-${team.id}">0</b></div>
+    <div class="chip" id="gf-want-${team.id}" onclick="setGF('want',this,'${team.id}')">Quero <b id="g-quero-${team.id}">0</b></div>
+  </div>
+  <div class="toolbar">
+    <button class="btn" onclick="openMini('year','${team.id}')">+ Ano</button>
+    <button class="btn" onclick="openMini('variant','${team.id}')">+ Variante</button>
+  </div>
+  <div style="overflow-x:auto"><div class="grid-wrap"><table><thead id="g-thead-${team.id}"></thead><tbody id="g-tbody-${team.id}"></tbody></table></div></div>`;
+}
+
+function othersHTML(){
+  return `<div class="chips">
+    <div class="chip f-all" id="of-all" onclick="setOF('')">Todos</div>
+    <div class="chip" id="of-has" onclick="setOF('has')">Tenho <b id="o-tenho">0</b></div>
+    <div class="chip" id="of-want" onclick="setOF('want')">Quero <b id="o-quero">0</b></div>
+  </div>
+  <div class="toolbar">
+    <input class="search" type="text" id="o-search" placeholder="Buscar time, ano, liga..." oninput="renderOthers()">
+    <button class="btn btn-green" onclick="openOtherAdd()">+ Camisa</button>
+  </div>
+  <div class="cards" id="o-grid"></div>`;
+}
+
+function setGF(f,el,teamId){
+  _gF=f;
+  ['all','has','want'].forEach(k=>{
+    const c=document.getElementById('gf-'+k+'-'+teamId);
+    if(!c)return;
+    c.className='chip'+(k===f||(!f&&k==='all')?' f-'+k:'');
+    if(!f&&k==='all')c.className='chip f-all';
+  });
+  const team=_teams.find(t=>t.id===teamId);
+  if(team)renderGrade(team);
+}
+
+function setOF(f){
+  _oF=f;
+  ['all','has','want'].forEach(k=>{
+    const c=document.getElementById('of-'+k);if(!c)return;
+    c.className='chip'+(k===f||(f===''&&k==='all')?(' f-'+k):'');
+    if(f===''&&k==='all')c.className='chip f-all';
+  });
+  renderOthers();
+}
+
+function updateHeader(){
+  let tenho=0,quero=0;
+  Object.values(_shirts).forEach(teamShirts=>{
+    Object.values(teamShirts).forEach(s=>{
+      if(s.status==='has')tenho+=(s.qty||1);
+      else if(s.status==='want')quero++;
+    });
+  });
+  tenho+=_others.filter(s=>s.status==='has').length;
+  quero+=_others.filter(s=>s.status==='want').length;
+  document.getElementById('hs-tenho').textContent=tenho;
+  document.getElementById('hs-quero').textContent=quero;
+  document.getElementById('hs-times').textContent=_teams.length;
+}
+
+/* ── GRADE ── */
+function renderGrade(team){
+  if(!team)return;
+  const tid=team.id;
+  const{years,variants}=team;
+  const shirts=_shirts[tid]||{};
+  const filter=_gF;
+
+  if(!years?.length||!variants?.length){
+    document.getElementById('g-thead-'+tid).innerHTML='';
+    document.getElementById('g-tbody-'+tid).innerHTML=`<tr><td colspan="10">
+      <div class="empty-panel">
+        <span class="empty-panel-icon">👕</span>
+        <div class="empty-panel-title">Grade vazia</div>
+        <div class="empty-panel-sub">Adicione anos e variantes para começar a catalogar.</div>
+        <button class="btn-big" onclick="openMini('year','${tid}')">+ Adicionar ano</button>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  document.getElementById('g-thead-'+tid).innerHTML=`<tr><th class="yc"></th>${variants.map(v=>`<th><span class="col-label" onclick="openEditVariant('${tid}','${v}')" title="Editar variante">${v}</span></th>`).join('')}</tr>`;
+  document.getElementById('g-tbody-'+tid).innerHTML=years.map(y=>{
+    const cells=variants.map(v=>{
+      const k=gkey(y,v),s=shirts[k];
+      if(s){
+        if(filter&&s.status!==filter)return`<td class="sc"><div class="cell" style="opacity:.18;pointer-events:none"><div class="cell-plus">—</div></div></td>`;
+        const img=s.img?`<img class="cell-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:`<div class="cell-nimg">👕</div>`;
+        const num=s.number?`<span class="cell-num">${s.number}</span>`:`<span class="cell-num" style="color:var(--hint)">—</span>`;
+        return`<td class="sc"><div class="cell ${s.status}" onclick="openGDetail('${tid}','${k}')">${img}<div class="cell-foot">${num}<span class="tag tag-${s.status}">${s.status==='has'?'tenho':'quero'}</span></div></div></td>`;
+      }
+      if(filter)return`<td class="sc"><div class="cell" style="opacity:.12;pointer-events:none"><div class="cell-plus">—</div></div></td>`;
+      return`<td class="sc"><div class="cell" onclick="openGAdd('${tid}',${y},'${v}')"><div class="cell-plus">+</div></div></td>`;
+    });
+    return`<tr><td class="yr"><span class="col-label" onclick="openEditYear('${tid}',${y})" title="Editar ano">${y}</span></td>${cells.join('')}</tr>`;
+  }).join('');
+
+  const vals=Object.values(shirts);
+  const el_t=document.getElementById('g-tenho-'+tid);
+  const el_q=document.getElementById('g-quero-'+tid);
+  if(el_t)el_t.textContent=vals.filter(s=>s.status==='has').reduce((a,s)=>a+(s.qty||1),0);
+  if(el_q)el_q.textContent=vals.filter(s=>s.status==='want').length;
+  updateHeader();
+}
+
+/* ── FORM HELPERS ── */
+function imgField(existing){
+  _imgData=existing||'';
+  return`<div class="field"><label>Foto da camisa</label>
+    <div style="display:flex;gap:6px;margin-bottom:6px">
+      <button type="button" class="img-tab active" id="itab-url" onclick="switchImgTab('url')">🔗 Link</button>
+      <button type="button" class="img-tab" id="itab-file" onclick="switchImgTab('file')">📷 Upload</button>
+    </div>
+    <div id="img-url-sec">
+      <input type="url" id="img-url" placeholder="https://..." value="${existing&&!existing.includes('supabase')?existing:''}" oninput="handleUrl(this.value)">
+    </div>
+    <div id="img-file-sec" style="display:none">
+      <div class="upload-area">Toque para escolher foto ou tirar uma<input type="file" accept="image/*" capture="environment" onchange="handleUpload(event)"></div>
+    </div>
+    <img id="img-prev" class="img-preview" src="${existing||''}" style="display:${existing?'block':'none'}">
+  </div>`;
+}
+function switchImgTab(tab){
+  document.getElementById('itab-url').className='img-tab'+(tab==='url'?' active':'');
+  document.getElementById('itab-file').className='img-tab'+(tab==='file'?' active':'');
+  document.getElementById('img-url-sec').style.display=tab==='url'?'':'none';
+  document.getElementById('img-file-sec').style.display=tab==='file'?'':'none';
+}
+function handleUrl(v){_imgData=v.trim();const p=document.getElementById('img-prev');p.style.display=_imgData?'block':'none';if(_imgData)p.src=_imgData;}
+async function handleUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  // Comprimir antes de subir
+  const compressed=await compressImage(file,800,0.8);
+  const ext=file.name.split('.').pop()||'jpg';
+  const path=`${_uid}/${Date.now()}.${ext}`;
+  const{data,error}=await sb.storage.from('shirt-photos').upload(path,compressed,{upsert:true});
+  if(error){alert('Erro no upload: '+error.message);return;}
+  const{data:{publicUrl}}=sb.storage.from('shirt-photos').getPublicUrl(path);
+  _imgData=publicUrl;
+  const p=document.getElementById('img-prev');p.src=_imgData;p.style.display='block';
+}
+async function compressImage(file,maxSize,quality){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{
+        let w=img.width,h=img.height;
+        if(w>h){if(w>maxSize){h=Math.round(h*maxSize/w);w=maxSize;}}
+        else{if(h>maxSize){w=Math.round(w*maxSize/h);h=maxSize;}}
+        const canvas=document.createElement('canvas');
+        canvas.width=w;canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        canvas.toBlob(blob=>resolve(blob),'image/jpeg',quality);
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+function setSt(v){_status=v;document.getElementById('sb-has').className='status-btn'+(v==='has'?' sel-has':'');document.getElementById('sb-want').className='status-btn'+(v==='want'?' sel-want':'');}
+function statusRow(st){return`<div class="status-row"><button type="button" id="sb-has" class="status-btn${st==='has'?' sel-has':''}" onclick="setSt('has')">✅ tenho</button><button type="button" id="sb-want" class="status-btn${st==='want'?' sel-want':''}" onclick="setSt('want')">🔵 quero</button></div>`;}
+
+function shirtForm(s){
+  s=s||{};_status=s.status||'has';_imgData=s.img||'';
+  return`<div class="field"><label>Status</label>${statusRow(_status)}</div>${imgField(s.img||'')}
+    <div class="field"><label>Número / jogador</label><input id="m-num" type="text" value="${s.number||''}" placeholder="Ex: 10 – Suárez"></div>
+    <div class="field"><label>Tamanho</label><select id="m-size"><option value="">—</option>${['PP','P','M','G','GG','XGG'].map(x=>`<option${s.size===x?' selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="field"><label>Fabricante</label><input id="m-brand" type="text" value="${s.brand||''}" placeholder="Ex: Umbro, Adidas..."></div>
+    <div class="field"><label>Quantidade</label><input id="m-qty" type="number" value="${s.qty||1}" min="1" max="99"></div>
+    <div class="field"><label>Estado</label><select id="m-cond">${['novo','bom','regular','desgastado'].map(c=>`<option value="${c}"${(s.cond||'novo')===c?' selected':''}>${{novo:'Novo / excelente',bom:'Bom',regular:'Regular',desgastado:'Desgastado'}[c]}</option>`).join('')}</select></div>
+    <div class="field"><label>Observações</label><textarea id="m-obs" placeholder="Como conseguiu, valor...">${s.obs||''}</textarea></div>`;
+}
+function shirtFormData(){return{status:_status,img:_imgData,number:document.getElementById('m-num').value.trim(),size:document.getElementById('m-size').value,brand:document.getElementById('m-brand').value.trim(),qty:parseInt(document.getElementById('m-qty').value)||1,cond:document.getElementById('m-cond').value,obs:document.getElementById('m-obs').value.trim()};}
+
+function openGAdd(teamId,year,variant){
+  document.getElementById('m-title').textContent=`${variant} ${year}`;
+  document.getElementById('m-body').innerHTML=shirtForm({});
+  document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveG('${teamId}',${year},'${variant}')">Salvar</button>`;
+  openModal();
+}
+async function saveG(teamId,year,variant){
+  const d={user_id:_uid,team_id:teamId,year,variant,...shirtFormData()};
+  const k=gkey(year,variant);
+  if(!_shirts[teamId])_shirts[teamId]={};
+  const existing=_shirts[teamId][k];
+  let res;
+  if(existing?.id)res=await sb.from('main_shirts').update(d).eq('id',existing.id).select().single();
+  else res=await sb.from('main_shirts').insert(d).select().single();
+  if(!res.error){_shirts[teamId][k]=res.data;toast();closeModal();const team=_teams.find(t=>t.id===teamId);renderGrade(team);}
+}
+
+function openGDetail(teamId,k){
+  const s=_shirts[teamId]?.[k];if(!s)return;
+  const cp={novo:'Novo/excelente',bom:'Bom',regular:'Regular',desgastado:'Desgastado'};
+  document.getElementById('m-title').textContent=`${s.variant} ${s.year}`;
+  document.getElementById('m-body').innerHTML=
+    (s.img?`<img class="detail-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:'')
+    +`<div style="margin-bottom:10px"><span class="tag tag-${s.status}" style="font-size:11px;padding:3px 10px">${s.status==='has'?'tenho':'quero'}</span></div>`
+    +(s.number?`<div class="detail-row"><span>Número</span><span style="font-size:1.1rem;font-weight:500;letter-spacing:-.5px">${s.number}</span></div>`:'')
+    +(s.size?`<div class="detail-row"><span>Tamanho</span><span>${s.size}</span></div>`:'')
+    +(s.brand?`<div class="detail-row"><span>Fabricante</span><span>${s.brand}</span></div>`:'')
+    +(s.qty>1?`<div class="detail-row"><span>Quantidade</span><span>${s.qty}</span></div>`:'')
+    +(s.cond?`<div class="detail-row"><span>Estado</span><span>${cp[s.cond]}</span></div>`:'')
+    +(s.obs?`<p class="detail-obs">${s.obs}</p>`:'');
+  document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Fechar</button><button class="btn-del" onclick="removeG('${teamId}','${k}')">Remover</button><button class="btn-save" onclick="editG('${teamId}','${k}')">Editar</button>`;
+  openModal();
+}
+function editG(teamId,k){const s=_shirts[teamId]?.[k];closeModal();setTimeout(()=>{document.getElementById('m-title').textContent=`${s.variant} ${s.year}`;document.getElementById('m-body').innerHTML=shirtForm(s);document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveG('${teamId}',${s.year},'${s.variant}')">Salvar</button>`;openModal();},60);}
+async function removeG(teamId,k){if(!confirm('Remover esta camisa?'))return;const s=_shirts[teamId]?.[k];await sb.from('main_shirts').delete().eq('id',s.id);delete _shirts[teamId][k];toast('Removido');closeModal();const team=_teams.find(t=>t.id===teamId);renderGrade(team);}
+
+/* ── MINI MODAL (ano/variante) ── */
+let _miniTeamId=null,_miniMode='';
+function openMini(mode,teamId){
+  _miniMode=mode;_miniTeamId=teamId;
+  document.getElementById('mini-title').textContent=mode==='year'?'Adicionar ano':'Adicionar variante';
+  document.getElementById('mini-inp').value='';
+  document.getElementById('mini-inp').type=mode==='year'?'number':'text';
+  document.getElementById('mini-inp').placeholder=mode==='year'?'Ex: 2015':'Ex: Especial, Retrô...';
+  document.getElementById('mt-add').style.display='none';
+  document.getElementById('mt-rem').style.display='none';
+  document.getElementById('mt-add-sec').style.display='';
+  document.getElementById('mt-rem-sec').style.display='none';
+  document.getElementById('mini-ok').textContent='Adicionar';
+  document.getElementById('mini-modal').classList.add('open');
+  setTimeout(()=>document.getElementById('mini-inp').focus(),60);
+}
+function closeMini(){document.getElementById('mini-modal').classList.remove('open');}
+
+async function miniConfirm(){
+  const team=_teams.find(t=>t.id===_miniTeamId);if(!team)return;
+  const val=document.getElementById('mini-inp').value.trim();if(!val)return;
+  if(_miniMode==='year'){
+    const y=parseInt(val);if(isNaN(y))return;
+    if(!team.years.includes(y)){team.years.push(y);team.years.sort((a,b)=>b-a);}
+  } else {
+    if(!team.variants.includes(val))team.variants.push(val);
+  }
+  await sb.from('favorite_teams').update({years:team.years,variants:team.variants}).eq('id',team.id);
+  toast();renderGrade(team);closeMini();
+}
+document.getElementById('mini-inp').addEventListener('keydown',e=>{if(e.key==='Enter')miniConfirm();});
+
+function openEditYear(teamId,year){
+  const team=_teams.find(t=>t.id===teamId);if(!team)return;
+  const hasShirts=team.variants.some(v=>(_shirts[teamId]||{})[gkey(year,v)]);
+  document.getElementById('m-title').textContent=`Ano ${year}`;
+  document.getElementById('m-body').innerHTML=`
+    <div class="field"><label>Renomear ano</label>
+      <input id="ey-val" type="number" value="${year}" placeholder="Ex: 2024">
+    </div>
+    ${hasShirts?`<p style="font-size:12px;color:var(--muted);margin-top:4px;padding:8px 10px;background:var(--surface);border-radius:var(--radius-sm)">⚠️ Esse ano tem camisas. Remova-as para poder excluir.</p>`:''}`;
+  document.getElementById('m-actions').innerHTML=`
+    <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+    ${!hasShirts?`<button class="btn-del" onclick="deleteYear('${teamId}',${year})">Remover</button>`:''}
+    <button class="btn-save" onclick="renameYear('${teamId}',${year})">Salvar</button>`;
+  openModal();
+}
+
+async function renameYear(teamId,oldYear){
+  const newYear=parseInt(document.getElementById('ey-val').value);
+  if(isNaN(newYear)||newYear===oldYear){closeModal();return;}
+  const team=_teams.find(t=>t.id===teamId);if(!team)return;
+  team.years=team.years.map(y=>y===oldYear?newYear:y);
+  team.years.sort((a,b)=>b-a);
+  // Atualizar camisas com o novo ano
+  const sh=_shirts[teamId]||{};
+  const toUpdate=Object.entries(sh).filter(([k])=>k.startsWith(oldYear+'__'));
+  for(const[k,s] of toUpdate){
+    await sb.from('main_shirts').update({year:newYear}).eq('id',s.id);
+    const newK=gkey(newYear,s.variant);
+    _shirts[teamId][newK]={...s,year:newYear};
+    delete _shirts[teamId][k];
+  }
+  await sb.from('favorite_teams').update({years:team.years}).eq('id',teamId);
+  toast();closeModal();renderGrade(team);
+}
+
+async function deleteYear(teamId,year){
+  if(!confirm(`Remover o ano ${year}?`))return;
+  const team=_teams.find(t=>t.id===teamId);if(!team)return;
+  team.years=team.years.filter(y=>y!==year);
+  await sb.from('favorite_teams').update({years:team.years}).eq('id',teamId);
+  toast('Removido');closeModal();renderGrade(team);
+}
+
+function openEditVariant(teamId,variant){
+  const team=_teams.find(t=>t.id===teamId);if(!team)return;
+  const hasShirts=team.years.some(y=>(_shirts[teamId]||{})[gkey(y,variant)]);
+  document.getElementById('m-title').textContent=`Variante "${variant}"`;
+  document.getElementById('m-body').innerHTML=`
+    <div class="field"><label>Renomear variante</label>
+      <input id="ev-val" type="text" value="${variant}" placeholder="Ex: Titular, Especial...">
+    </div>
+    ${hasShirts?`<p style="font-size:12px;color:var(--muted);margin-top:4px;padding:8px 10px;background:var(--surface);border-radius:var(--radius-sm)">⚠️ Essa variante tem camisas. Remova-as para poder excluir.</p>`:''}`;
+  document.getElementById('m-actions').innerHTML=`
+    <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+    ${!hasShirts?`<button class="btn-del" onclick="deleteVariant('${teamId}','${variant}')">Remover</button>`:''}
+    <button class="btn-save" onclick="renameVariant('${teamId}','${variant}')">Salvar</button>`;
+  openModal();
+}
+
+async function renameVariant(teamId,oldVariant){
+  const newVariant=document.getElementById('ev-val').value.trim();
+  if(!newVariant||newVariant===oldVariant){closeModal();return;}
+  const team=_teams.find(t=>t.id===teamId);if(!team)return;
+  team.variants=team.variants.map(v=>v===oldVariant?newVariant:v);
+  const sh=_shirts[teamId]||{};
+  const toUpdate=Object.entries(sh).filter(([k])=>k.endsWith('__'+oldVariant));
+  for(const[k,s] of toUpdate){
+    await sb.from('main_shirts').update({variant:newVariant}).eq('id',s.id);
+    const newK=gkey(s.year,newVariant);
+    _shirts[teamId][newK]={...s,variant:newVariant};
+    delete _shirts[teamId][k];
+  }
+  await sb.from('favorite_teams').update({variants:team.variants}).eq('id',teamId);
+  toast();closeModal();renderGrade(team);
+}
+
+async function deleteVariant(teamId,variant){
+  if(!confirm(`Remover a variante "${variant}"?`))return;
+  const team=_teams.find(t=>t.id===teamId);if(!team)return;
+  team.variants=team.variants.filter(v=>v!==variant);
+  await sb.from('favorite_teams').update({variants:team.variants}).eq('id',teamId);
+  toast('Removido');closeModal();renderGrade(team);
+}
+
+/* ── ADD TIME ── */
+function openAddTeam(){
+  document.getElementById('m-title').textContent='Novo time favorito';
+  document.getElementById('m-body').innerHTML=`
+    <div class="field"><label>Nome do time</label><input id="at-team" type="text" placeholder="Ex: Grêmio, Ajax, Liverpool..."></div>
+    <div class="field"><label>Variantes de uniforme</label>
+      <div class="vtags" id="at-vtags" style="margin-top:6px">
+        <div class="vtag sel" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Titular</div>
+        <div class="vtag sel" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Visitante</div>
+        <div class="vtag sel" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Terceiro</div>
+        <div class="vtag" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Goleiro</div>
+        <div class="vtag" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Especial</div>
+        <div class="vtag" onclick="this.classList.toggle('sel')"><span class="ck">✓</span>Retrô</div>
+      </div>
+    </div>`;
+  document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveAddTeam()">Criar grade</button>`;
+  openModal();
+}
+async function saveAddTeam(){
+  const name=document.getElementById('at-team').value.trim();if(!name){alert('Informe o nome do time.');return;}
+  const sels=[...document.querySelectorAll('#at-vtags .vtag.sel')].map(t=>t.childNodes[t.childNodes.length-1].textContent.trim());
+  const yr=new Date().getFullYear();
+  const years=Array.from({length:10},(_,i)=>yr-i);
+  const{data:team}=await sb.from('favorite_teams').insert({user_id:_uid,name,years,variants:sels,position:_teams.length}).select().single();
+  if(team){_teams.push(team);_shirts[team.id]={};closeModal();buildTabs();// ativa a nova aba
+  setTimeout(()=>{const newTab=document.querySelector(`[data-team-id="${team.id}"]`);if(newTab)switchToTeam(team.id,newTab);},50);}
+}
+
+/* ── OUTROS TIMES ── */
+function otherForm(s){
+  s=s||{};_status=s.status||'has';_imgData=s.img||'';
+  return`<div class="field"><label>Status</label>${statusRow(_status)}</div>${imgField(s.img||'')}
+    <div class="field"><label>Time *</label><input id="m-team" type="text" value="${s.team||''}" placeholder="Ex: Ajax, Liverpool..."></div>
+    <div class="field"><label>Ano</label><input id="m-year" type="number" value="${s.year||''}" placeholder="Ex: 2023"></div>
+    <div class="field"><label>Tipo</label><select id="m-variant"><option value="">—</option>${['Titular','Visitante','Terceiro','Goleiro','Especial','Retrô'].map(x=>`<option${s.variant===x?' selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="field"><label>País / Liga</label><input id="m-league" type="text" value="${s.league||''}" placeholder="Ex: Premier League..."></div>
+    <div class="field"><label>Número / jogador</label><input id="m-num" type="text" value="${s.number||''}" placeholder="Ex: 7 – Ronaldo"></div>
+    <div class="field"><label>Fabricante</label><input id="m-brand" type="text" value="${s.brand||''}" placeholder="Ex: Nike, Adidas..."></div>
+    <div class="field"><label>Tamanho</label><select id="m-size"><option value="">—</option>${['PP','P','M','G','GG','XGG'].map(x=>`<option${s.size===x?' selected':''}>${x}</option>`).join('')}</select></div>
+    <div class="field"><label>Observações</label><textarea id="m-obs" placeholder="Como conseguiu, valor...">${s.obs||''}</textarea></div>`;
+}
+function otherFormData(){const team=document.getElementById('m-team').value.trim();if(!team)return null;return{status:_status,img:_imgData,team,year:parseInt(document.getElementById('m-year').value)||null,variant:document.getElementById('m-variant').value,league:document.getElementById('m-league').value.trim(),number:document.getElementById('m-num').value.trim(),brand:document.getElementById('m-brand').value.trim(),size:document.getElementById('m-size').value,obs:document.getElementById('m-obs').value.trim()};}
+
+function renderOthers(){
+  const searchEl=document.getElementById('o-search');
+  const q=(searchEl?.value||'').toLowerCase();
+  const list=_others.filter(s=>{const m=!q||(s.team||'').toLowerCase().includes(q)||String(s.year||'').includes(q)||(s.league||'').toLowerCase().includes(q);return m&&(!_oF||s.status===_oF);});
+  const ot=document.getElementById('o-tenho');const oq=document.getElementById('o-quero');
+  if(ot)ot.textContent=_others.filter(s=>s.status==='has').length;
+  if(oq)oq.textContent=_others.filter(s=>s.status==='want').length;
+  const grid=document.getElementById('o-grid');if(!grid)return;
+  if(!list.length){
+    grid.innerHTML=`<div style="grid-column:1/-1">
+      <div class="empty-panel">
+        <span class="empty-panel-icon">👕</span>
+        <div class="empty-panel-title">${_others.length?'Nenhuma camisa encontrada':'Nenhuma camisa ainda'}</div>
+        <div class="empty-panel-sub">${_others.length?'Tente outro filtro ou busca.':'Adicione camisas de outros times aqui.'}</div>
+        ${!_others.length?'<button class="btn-big" onclick="openOtherAdd()">+ Adicionar camisa</button>':''}
+      </div>
+    </div>`;return;
+  }
+  grid.innerHTML=list.map(s=>{
+    const img=s.img?`<img class="card-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:`<div class="card-nimg">👕</div>`;
+    return`<div class="card ${s.status}" onclick="openOtherDetail('${s.id}')">${img}<div class="card-body"><div class="card-top"><div class="card-team">${s.team}</div><div class="card-num">${s.number||'—'}</div></div><div class="card-sub">${s.year||''}${s.year&&s.variant?' · ':''}${s.variant||''}</div><div class="card-foot"><span class="card-liga">${s.league||''}</span><span class="tag tag-${s.status}">${s.status==='has'?'tenho':'quero'}</span></div></div></div>`;
+  }).join('')+`<div class="card" onclick="openOtherAdd()" style="border:1.5px dashed var(--border2);cursor:pointer;display:flex;align-items:center;justify-content:center;min-height:120px;opacity:.5;transition:opacity .15s" onmouseenter="this.style.opacity=1" onmouseleave="this.style.opacity=.5"><span style="font-size:1.8rem;color:var(--muted)">+</span></div>`;
+}
+
+function openOtherAdd(){document.getElementById('m-title').textContent='Nova camisa';document.getElementById('m-body').innerHTML=otherForm({});document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveOther()">Salvar</button>`;openModal();}
+async function saveOther(id){const d=otherFormData();if(!d){alert('Informe o nome do time.');return;}d.user_id=_uid;let res;if(id){const i=_others.findIndex(x=>x.id===id);if(i!==-1){res=await sb.from('other_shirts').update(d).eq('id',id).select().single();if(!res.error)_others[i]=res.data;}}else{res=await sb.from('other_shirts').insert(d).select().single();if(!res.error)_others.push(res.data);}if(!res.error){toast();closeModal();renderOthers();updateHeader();}}
+function openOtherDetail(id){const s=_others.find(x=>x.id===id);if(!s)return;document.getElementById('m-title').textContent=s.team;document.getElementById('m-body').innerHTML=(s.img?`<img class="detail-img" src="${s.img}" alt="" onerror="this.style.display='none'">`:'')+`<div style="margin-bottom:10px"><span class="tag tag-${s.status}" style="font-size:11px;padding:3px 10px">${s.status==='has'?'tenho':'quero'}</span></div>`+(s.number?`<div class="detail-row"><span>Número</span><span style="font-size:1.1rem;font-weight:500;letter-spacing:-.5px">${s.number}</span></div>`:'')+( s.year?`<div class="detail-row"><span>Ano</span><span>${s.year}</span></div>`:'')+( s.variant?`<div class="detail-row"><span>Tipo</span><span>${s.variant}</span></div>`:'')+( s.league?`<div class="detail-row"><span>País / liga</span><span>${s.league}</span></div>`:'')+( s.brand?`<div class="detail-row"><span>Fabricante</span><span>${s.brand}</span></div>`:'')+( s.size?`<div class="detail-row"><span>Tamanho</span><span>${s.size}</span></div>`:'')+( s.obs?`<p class="detail-obs">${s.obs}</p>`:'');document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Fechar</button><button class="btn-del" onclick="removeOther('${id}')">Remover</button><button class="btn-save" onclick="editOther('${id}')">Editar</button>`;openModal();}
+function editOther(id){const s=_others.find(x=>x.id===id);closeModal();setTimeout(()=>{document.getElementById('m-title').textContent='Editar camisa';document.getElementById('m-body').innerHTML=otherForm(s);document.getElementById('m-actions').innerHTML=`<button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveOther('${id}')">Salvar</button>`;openModal();},60);}
+async function removeOther(id){if(!confirm('Remover esta camisa?'))return;await sb.from('other_shirts').delete().eq('id',id);_others=_others.filter(x=>x.id!==id);toast('Removido');closeModal();renderOthers();updateHeader();}
+
+function openModal(){document.getElementById('modal').classList.add('open');}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+
+/* ── INIT ── */
+sb.auth.onAuthStateChange((event)=>{
+  if(event==='SIGNED_OUT'){_uid=null;_profile=null;_loading=false;_teams=[];_shirts={};_others=[];document.getElementById('app').style.display='none';document.getElementById('ob').style.display='none';showAuth();}
+});
+sb.auth.getSession().then(({data:{session}})=>{
+  if(session?.user)loadUserData(session.user.id);
+  else{showLoading(false);showAuth();}
+}).catch(()=>{showLoading(false);showAuth();});
+</script>
+</body>
+</html>
